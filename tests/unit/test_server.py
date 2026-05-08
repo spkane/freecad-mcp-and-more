@@ -310,11 +310,13 @@ class TestMain:
         ):
             server_module.main()
 
-            # Should call run with HTTP transport settings
-            mock_run.assert_called_once()
-            call_kwargs = mock_run.call_args.kwargs
-            assert call_kwargs.get("transport") == "streamable-http"
-            assert call_kwargs.get("port") == 8080
+            # Verify settings were set correctly BEFORE run() was called
+            assert server_module.mcp.settings.host == "0.0.0.0"
+            assert server_module.mcp.settings.port == 8080
+            assert server_module.mcp.settings.log_level == "INFO"
+
+            # Verify run() was called with HTTP transport
+            mock_run.assert_called_once_with(transport="streamable-http")
 
     def test_main_stdio_transport(self):
         """Main should start stdio transport by default."""
