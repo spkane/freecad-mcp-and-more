@@ -79,6 +79,7 @@ You are connected to the FreeCAD Robust MCP Server. Follow these guidelines for 
 ```
 1. ALWAYS create Body first: create_partdesign_body(name="Body")
 2. Create sketches ON the body: create_sketch(body_name="Body", plane="XY_Plane")
+   # Note: On FreeCAD 1.x, sketch Support attribute is accessed differently
 3. Extrude with: pad_sketch(sketch_name="...", length=...)
 4. VALIDATE after each feature: validate_object(object_name="...")
 ```
@@ -87,6 +88,8 @@ You are connected to the FreeCAD Robust MCP Server. Follow these guidelines for 
 - **All operations support undo** - simply call `undo()` if something goes wrong
 - **Use safe_execute()** for risky operations - auto-undoes on failure
 - **Use validate_document()** to check all objects after complex operations
+- **Ensure required modules are imported** (e.g., `import Sketcher, Part, FreeCAD`)
+- **For FreeCAD 1.x compatibility**: Use `hasattr()` checks before accessing deprecated attributes like `Support`
 
 ### Version Compatibility
 The MCP tools automatically handle FreeCAD version differences (1.0 vs older).
