@@ -1126,3 +1126,105 @@ class TestPartDesignTools:
         assert result["success"] is True
         assert result["is_construction"] is True
         mock_bridge.execute_python.assert_called_once()
+
+
+class TestSymmetricExtrudeCompatibility:
+    """Symmetric extrusion must target the property the running FreeCAD has.
+
+    PartDesign::Pad has never had a `Symmetric` property. FreeCAD exposes
+    `Midplane`, and 1.1+ supersedes that with `SideType`, emitting a deprecation
+    warning when `Midplane` is set. Generated code therefore probes for the
+    property rather than assuming one, so a single build works across versions.
+    """
+
+    @pytest.fixture
+    def mock_mcp(self):
+        mcp = MagicMock()
+        mcp._registered_tools = {}
+
+        def tool_decorator():
+            def wrapper(func):
+                mcp._registered_tools[func.__name__] = func
+                return func
+
+            return wrapper
+
+        mcp.tool = tool_decorator
+        return mcp
+
+    @pytest.fixture
+    def mock_bridge(self):
+        bridge = AsyncMock()
+        bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={"success": True, "name": "F", "label": "F", "type_id": "T"},
+                stdout="",
+                stderr="",
+                error_traceback=None,
+                execution_time_ms=1.0,
+            )
+        )
+        return bridge
+
+    @pytest.fixture
+    def register_tools(self, mock_mcp, mock_bridge):
+        from freecad_mcp.tools.partdesign import register_partdesign_tools
+
+        async def get_bridge():
+            return mock_bridge
+
+        register_partdesign_tools(mock_mcp, get_bridge)
+        return mock_mcp._registered_tools
+
+    @staticmethod
+    def _generated(mock_bridge):
+        code = mock_bridge.execute_python.call_args[0][0]
+        # Generated code is exec'd inside FreeCAD, so it must at least parse.
+        compile(code, "<generated>", "exec")
+        return code
+
+    @pytest.mark.asyncio
+    async def test_pad_prefers_sidetype_and_falls_back(
+        self, register_tools, mock_bridge
+    ):
+        await register_tools["pad_sketch"](
+            sketch_name="Sketch", length=10.0, symmetric=True
+        )
+        code = self._generated(mock_bridge)
+
+        assert 'hasattr(pad, "SideType")' in code
+        assert 'pad.SideType = "Symmetric" if _symmetric else "One side"' in code
+        assert 'elif hasattr(pad, "Midplane")' in code
+        assert "pad.Midplane = _symmetric" in code
+        # SideType must be tried first, or 1.1 emits a deprecation warning.
+        assert code.index("SideType") < code.index("Midplane")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("tool", "var"),
+        [("revolution_sketch", "rev"), ("groove_sketch", "groove")],
+    )
+    async def test_revolution_and_groove_use_midplane(
+        self, register_tools, mock_bridge, tool, var
+    ):
+        """Revolution and Groove have no SideType, so Midplane is correct there."""
+        await register_tools[tool](sketch_name="Sketch", angle=360.0, symmetric=True)
+        code = self._generated(mock_bridge)
+
+        assert f'hasattr({var}, "Midplane")' in code
+        assert f"{var}.Midplane = _symmetric" in code
+        assert "SideType" not in code
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("symmetric", [True, False])
+    async def test_symmetric_value_is_bound_once(
+        self, register_tools, mock_bridge, symmetric
+    ):
+        """The flag is bound to a local, so each branch reads the same value."""
+        await register_tools["pad_sketch"](
+            sketch_name="Sketch", length=10.0, symmetric=symmetric
+        )
+        code = self._generated(mock_bridge)
+
+        assert f"_symmetric = {symmetric}" in code
