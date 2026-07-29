@@ -764,7 +764,19 @@ elif view_type == "Right":
 with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
     temp_path = f.name
 
+# Flush pending paint events and frame the geometry, otherwise the grab
+# can race the renderer and produce an image with no model in it.
+FreeCADGui.updateGui()
+_saved_camera = view.getCamera()
+view.fitAll()
+FreeCADGui.updateGui()
+
 view.saveImage(temp_path, {width}, {height}, "Current")
+
+# Restore the camera so a read-only screenshot does not move the user's
+# view, and so zoom/camera tools stay observable across captures.
+view.setCamera(_saved_camera)
+FreeCADGui.updateGui()
 
 with open(temp_path, "rb") as f:
     image_data = base64.b64encode(f.read()).decode("utf-8")
