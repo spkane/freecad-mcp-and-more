@@ -2789,7 +2789,7 @@ try:
 
     _result_ = {{
         "success": True,
-        "external_geometry_count": sketch.ExternalGeometryCount,
+        "external_geometry_count": sum(len(_s) for _, _s in sketch.ExternalGeometry),
     }}
 except Exception:
     doc.abortTransaction()
@@ -2925,7 +2925,7 @@ _result_ = {{
     "label": sketch.Label,
     "geometry_count": sketch.GeometryCount,
     "constraint_count": sketch.ConstraintCount,
-    "external_geometry_count": sketch.ExternalGeometryCount,
+    "external_geometry_count": sum(len(_s) for _, _s in sketch.ExternalGeometry),
     "fully_constrained": sketch.FullyConstrained if hasattr(sketch, "FullyConstrained") else None,
     "dof": sketch.solve() if hasattr(sketch, "solve") else None,
 }}
