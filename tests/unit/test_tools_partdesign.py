@@ -1129,12 +1129,18 @@ class TestPartDesignTools:
 
 
 class TestSymmetricExtrudeCompatibility:
-    """Symmetric extrusion must target the property the running FreeCAD has.
+    """Test FreeCAD 1.1 compatibility for PartDesign and sketch geometry.
 
     PartDesign::Pad has never had a `Symmetric` property. FreeCAD exposes
     `Midplane`, and 1.1+ supersedes that with `SideType`, emitting a deprecation
     warning when `Midplane` is set. Generated code therefore probes for the
     property rather than assuming one, so a single build works across versions.
+
+    `Sketch.ExternalGeometryCount` was removed in FreeCAD 1.1. Its replacement is
+    not `len(sketch.ExternalGeometry)`: that property is an
+    App::PropertyLinkSubList holding one entry per linked *object*, with the
+    referenced subelements collapsed into a tuple. Three edges taken from one
+    solid therefore give len() == 1, so the subelements have to be summed.
     """
 
     @pytest.fixture
@@ -1228,3 +1234,35 @@ class TestSymmetricExtrudeCompatibility:
         code = self._generated(mock_bridge)
 
         assert f"_symmetric = {symmetric}" in code
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("tool", "kwargs"),
+        [
+            ("get_sketch_info", {"sketch_name": "Sketch"}),
+            (
+                "add_external_geometry",
+                {"sketch_name": "Sketch", "object_name": "Box", "element": "Edge1"},
+            ),
+        ],
+    )
+    async def test_counts_subelements_not_linked_objects(
+        self, register_tools, mock_bridge, tool, kwargs
+    ):
+        await register_tools[tool](**kwargs)
+        code = mock_bridge.execute_python.call_args[0][0]
+        compile(code, "<generated>", "exec")
+
+        assert "ExternalGeometryCount" not in code, "removed in FreeCAD 1.1"
+        assert "sum(len(_s) for _, _s in sketch.ExternalGeometry)" in code
+
+    def test_summing_matches_freecad_link_sub_list_shape(self):
+        """Pin the semantics the generated expression relies on.
+
+        Mirrors what FreeCAD 1.1.3 returns after three addExternal() calls
+        against one object: a single entry whose subelements are a 3-tuple.
+        """
+        external_geometry = [(object(), ("Edge1", "Edge2", "Edge3"))]
+
+        assert len(external_geometry) == 1  # the tempting but wrong answer
+        assert sum(len(_s) for _, _s in external_geometry) == 3
