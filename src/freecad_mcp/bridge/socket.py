@@ -529,7 +529,7 @@ props = {{}}
 for prop in obj.PropertiesList:
     try:
         val = getattr(obj, prop)
-        if hasattr(val, '__class__') and val.__class__.__module__ != 'builtins':
+        if type(val).__module__ != 'builtins':
             val = str(val)
         props[prop] = val
     except Exception:
@@ -703,7 +703,7 @@ if view is None:
     raise ValueError("No active view")
 
 # Check view type
-view_type = view.__class__.__name__
+view_type = type(view).__name__
 if view_type not in ["View3DInventor", "View3DInventorPy"]:
     raise ValueError(f"Cannot capture screenshot from {{view_type}} view")
 
@@ -965,7 +965,7 @@ _result_ = {{
         code = """
 workbenches = []
 active_wb = FreeCADGui.activeWorkbench() if FreeCAD.GuiUp else None
-active_name = active_wb.__class__.__name__ if active_wb else None
+active_name = type(active_wb).__name__ if active_wb else None
 
 if FreeCAD.GuiUp:
     for name in FreeCADGui.listWorkbenches():

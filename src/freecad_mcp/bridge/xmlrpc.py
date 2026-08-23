@@ -504,7 +504,7 @@ props = {{}}
 for prop in obj.PropertiesList:
     try:
         val = getattr(obj, prop)
-        if hasattr(val, '__class__') and val.__class__.__module__ != 'builtins':
+        if type(val).__module__ != 'builtins':
             val = str(val)
         props[prop] = val
     except Exception:
@@ -972,7 +972,7 @@ _result_ = {{
         code = """
 workbenches = []
 active_wb = FreeCADGui.activeWorkbench() if FreeCAD.GuiUp else None
-active_name = active_wb.__class__.__name__ if active_wb else None
+active_name = type(active_wb).__name__ if active_wb else None
 
 if FreeCAD.GuiUp:
     for name in FreeCADGui.listWorkbenches():
