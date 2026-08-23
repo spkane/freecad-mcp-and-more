@@ -28,7 +28,7 @@ The workbench provides:
 
 ### Manual Installation
 
-Download from [GitHub Releases](https://github.com/spkane/freecad-robust-mcp-and-more/releases) and extract to your FreeCAD Mod directory:
+Download from [GitHub Releases](https://github.com/spkane/freecad-addon-robust-mcp-server/releases) and extract to your FreeCAD Mod directory:
 
 - **Linux:** `~/.local/share/FreeCAD/Mod/freecad/RobustMCPBridge/`
 - **macOS:** `~/Library/Application Support/FreeCAD/Mod/freecad/RobustMCPBridge/`

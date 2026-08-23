@@ -126,7 +126,7 @@ jobs:
 
           ## Documentation
 
-          Full documentation: https://github.com/spkane/freecad-robust-mcp-and-more
+          Full documentation: https://spkane.github.io/freecad-addon-robust-mcp-server/latest/
 
           ## License
 
@@ -185,7 +185,7 @@ jobs:
           - XML-RPC and JSON-RPC server support
           - Toolbar commands for bridge control
 
-          See the [full documentation](https://github.com/spkane/freecad-robust-mcp-and-more) for usage instructions.
+          See the [full documentation](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/) for usage instructions.
           STATIC_EOF
 
           if [ -n "$CHANGELOG_CONTENT" ]; then

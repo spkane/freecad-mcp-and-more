@@ -42,7 +42,7 @@ Install via `pip install freecad-robust-mcp` or `uv tool install freecad-robust-
 ## Documentation
 
 For full documentation, visit:
-<https://spkane.github.io/freecad-robust-mcp-and-more/>
+<https://spkane.github.io/freecad-addon-robust-mcp-server/latest/>
 
 ## License
 

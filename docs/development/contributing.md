@@ -15,8 +15,8 @@ Thank you for your interest in contributing to FreeCAD Robust MCP Server!
 ### Initial Setup
 
 ```bash
-git clone https://github.com/spkane/freecad-robust-mcp-and-more.git
-cd freecad-robust-mcp-and-more
+git clone https://github.com/spkane/freecad-addon-robust-mcp-server.git
+cd freecad-addon-robust-mcp-server
 
 # Install mise if not already installed
 curl https://mise.run | sh
@@ -80,7 +80,7 @@ just quality::security
 ## Project Structure
 
 ```text
-freecad-robust-mcp-and-more/
+freecad-addon-robust-mcp-server/
 ├── src/freecad_mcp/           # Main package
 │   ├── bridge/                # FreeCAD connection bridges
 │   ├── tools/                 # MCP tool implementations
@@ -213,10 +213,10 @@ Currently, embedded mode has only mocked unit tests. Adding live integration tes
 
 ## Getting Help
 
-- **Issues:** [GitHub Issues](https://github.com/spkane/freecad-robust-mcp-and-more/issues)
+- **Issues:** [GitHub Issues](https://github.com/spkane/freecad-addon-robust-mcp-server/issues)
 
 ---
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](https://github.com/spkane/freecad-robust-mcp-and-more/blob/main/LICENSE) for details.
+This project is licensed under the MIT License. See [LICENSE](https://github.com/spkane/freecad-addon-robust-mcp-server/blob/main/LICENSE) for details.

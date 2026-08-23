@@ -25,15 +25,15 @@ For detailed information on:
 
 Please see our comprehensive contributing documentation:
 
-**[Contributing Guide](https://spkane.github.io/freecad-robust-mcp-and-more/development/contributing/)**
+**[Contributing Guide](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/development/contributing/)**
 
 ## Quick Links
 
-- [Development Setup](https://spkane.github.io/freecad-robust-mcp-and-more/development/setup/)
-- [Code Style Guidelines](https://spkane.github.io/freecad-robust-mcp-and-more/development/code-style/)
-- [Testing Guide](https://spkane.github.io/freecad-robust-mcp-and-more/development/testing/)
-- [Documentation Guide](https://spkane.github.io/freecad-robust-mcp-and-more/development/mkdocs-guide/)
+- [Development Setup](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/development/setup/)
+- [Code Style Guidelines](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/development/code-style/)
+- [Testing Guide](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/development/testing/)
+- [Documentation Guide](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/development/mkdocs-guide/)
 
 ## Questions?
 
-If you have questions, please [open an issue](https://github.com/spkane/freecad-robust-mcp-and-more/issues/new) or check our [documentation](https://spkane.github.io/freecad-robust-mcp-and-more/).
+If you have questions, please [open an issue](https://github.com/spkane/freecad-addon-robust-mcp-server/issues/new) or check our [documentation](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/).

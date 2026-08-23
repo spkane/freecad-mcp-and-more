@@ -88,11 +88,11 @@ See [Macros Guide](guide/macros.md) for details on using macros with the MCP ser
 
 ## Links
 
-- [GitHub Repository](https://github.com/spkane/freecad-robust-mcp-and-more) - Source code and issue tracker
+- [GitHub Repository](https://github.com/spkane/freecad-addon-robust-mcp-server) - Source code and issue tracker
 - [PyPI Package](https://pypi.org/project/freecad-robust-mcp/) - Python package for pip installation
 - [Docker Hub](https://hub.docker.com/r/spkane/freecad-robust-mcp) - Pre-built Docker images
 
 ---
 
 !!! tip "Share This Documentation"
-    Direct link: **[https://spkane.github.io/freecad-robust-mcp-and-more/](https://spkane.github.io/freecad-robust-mcp-and-more/)**
+    Direct link: **[https://spkane.github.io/freecad-addon-robust-mcp-server/latest/](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/)**

@@ -1,6 +1,6 @@
 # FreeCAD Robust MCP Suite - Quick Start
 
-This guide gets you up and running quickly. For comprehensive documentation, visit our **[Full Documentation](https://spkane.github.io/freecad-robust-mcp-and-more/)**.
+This guide gets you up and running quickly. For comprehensive documentation, visit our **[Full Documentation](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/)**.
 
 ## Overview
 
@@ -27,8 +27,8 @@ The FreeCAD Robust MCP Suite consists of two components:
 
 ```bash
 # Clone the repository
-git clone https://github.com/spkane/freecad-robust-mcp-and-more.git
-cd freecad-robust-mcp-and-more
+git clone https://github.com/spkane/freecad-addon-robust-mcp-server.git
+cd freecad-addon-robust-mcp-server
 
 # Install the workbench
 just install::mcp-bridge-workbench
@@ -101,17 +101,17 @@ freecad-mcp --mode xmlrpc --test-connection
 
 For detailed guides, API reference, and advanced configuration:
 
-**[https://spkane.github.io/freecad-robust-mcp-and-more/](https://spkane.github.io/freecad-robust-mcp-and-more/)**
+**[https://spkane.github.io/freecad-addon-robust-mcp-server/latest/](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/)**
 
 ### Quick Links
 
-- [Installation Guide](https://spkane.github.io/freecad-robust-mcp-and-more/getting-started/installation/)
-- [Configuration Options](https://spkane.github.io/freecad-robust-mcp-and-more/getting-started/configuration/)
-- [MCP Tools Reference](https://spkane.github.io/freecad-robust-mcp-and-more/guide/tools/)
-- [Troubleshooting](https://spkane.github.io/freecad-robust-mcp-and-more/guide/troubleshooting/)
-- [API Reference](https://spkane.github.io/freecad-robust-mcp-and-more/reference/api/)
+- [Installation Guide](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/getting-started/installation/)
+- [Configuration Options](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/getting-started/configuration/)
+- [MCP Tools Reference](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/guide/tools/)
+- [Troubleshooting](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/guide/troubleshooting/)
+- [API Reference](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/reference/api/)
 
 ## Need Help?
 
-- [GitHub Issues](https://github.com/spkane/freecad-robust-mcp-and-more/issues)
-- [Full Documentation](https://spkane.github.io/freecad-robust-mcp-and-more/)
+- [GitHub Issues](https://github.com/spkane/freecad-addon-robust-mcp-server/issues)
+- [Full Documentation](https://spkane.github.io/freecad-addon-robust-mcp-server/latest/)

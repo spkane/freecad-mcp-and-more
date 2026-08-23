@@ -114,11 +114,14 @@ This section covers installation and usage for end users who want to use the Rob
 
 ### Installation
 
-#### Using pip (recommended)
+#### Using pip
 
 ```bash
 pip install freecad-robust-mcp
 ```
+
+For the FreeCAD workbench, use the Addon Manager or install this repository
+from source. The Python package alone does not install the in-FreeCAD bridge.
 
 #### Using mise and just (from source)
 

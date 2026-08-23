@@ -88,7 +88,7 @@ If installed from source with mise/uv:
   "mcpServers": {
     "freecad": {
       "command": "/path/to/mise/shims/uv",
-      "args": ["run", "--project", "/path/to/freecad-robust-mcp-and-more", "freecad-mcp"],
+      "args": ["run", "--project", "/path/to/freecad-addon-robust-mcp-server", "freecad-mcp"],
       "env": {
         "FREECAD_MODE": "xmlrpc"
       }

@@ -426,11 +426,9 @@ def main() -> None:
     # Run the server
     if config.transport == TransportType.HTTP:
         logger.info("Starting HTTP transport on port %d", config.http_port)
-        mcp.run(  # type: ignore[call-arg]
-            transport="streamable-http",
-            host="0.0.0.0",  # noqa: S104
-            port=config.http_port,
-        )
+        mcp.settings.host = "0.0.0.0"  # noqa: S104
+        mcp.settings.port = config.http_port
+        mcp.run(transport="streamable-http")
     else:
         logger.info("Starting stdio transport")
         logger.info(

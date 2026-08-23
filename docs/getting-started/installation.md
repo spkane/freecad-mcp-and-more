@@ -25,8 +25,8 @@ pip install freecad-robust-mcp
 ### Method 2: From Source (for Development)
 
 ```bash
-git clone https://github.com/spkane/freecad-robust-mcp-and-more.git
-cd freecad-robust-mcp-and-more
+git clone https://github.com/spkane/freecad-addon-robust-mcp-server.git
+cd freecad-addon-robust-mcp-server
 
 # Install mise (if not already installed)
 curl https://mise.run | sh
@@ -68,7 +68,7 @@ The Robust MCP Bridge Workbench runs inside FreeCAD and provides the connection 
 
 ### Manual Installation
 
-1. Download the latest release from [GitHub Releases](https://github.com/spkane/freecad-robust-mcp-and-more/releases)
+1. Download the latest release from [GitHub Releases](https://github.com/spkane/freecad-addon-robust-mcp-server/releases)
 1. Extract to your FreeCAD Mod directory:
    - **Linux:** `~/.local/share/FreeCAD/Mod/`
    - **macOS:** `~/Library/Application Support/FreeCAD/Mod/`
