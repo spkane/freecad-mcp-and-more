@@ -314,7 +314,7 @@ class TestMain:
             mock_run.assert_called_once()
             call_kwargs = mock_run.call_args.kwargs
             assert call_kwargs.get("transport") == "streamable-http"
-            assert server_module.mcp.settings.host == "0.0.0.0"
+            assert server_module.mcp.settings.host == "0.0.0.0"  # noqa: S104
             assert server_module.mcp.settings.port == 8080
 
     def test_main_stdio_transport(self):
