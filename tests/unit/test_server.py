@@ -310,11 +310,12 @@ class TestMain:
         ):
             server_module.main()
 
-            # Should call run with HTTP transport settings
+            # HTTP host and port are configured on FastMCP before run().
             mock_run.assert_called_once()
             call_kwargs = mock_run.call_args.kwargs
             assert call_kwargs.get("transport") == "streamable-http"
-            assert call_kwargs.get("port") == 8080
+            assert server_module.mcp.settings.host == "0.0.0.0"
+            assert server_module.mcp.settings.port == 8080
 
     def test_main_stdio_transport(self):
         """Main should start stdio transport by default."""
