@@ -699,12 +699,19 @@ view = FreeCADGui.ActiveDocument.ActiveView
 if view is None:
     raise ValueError("No active view")
 
-# Check if this is a 3D view (not TechDraw, Spreadsheet, etc.)
-# Note: Use type() instead of __class__ because FreeCAD's View3DInventor
-# has a broken __class__ attribute that returns a dict of methods.
-view_type = type(view).__name__
-if view_type not in ["View3DInventor", "View3DInventorPy"]:
-    raise ValueError(f"Cannot capture screenshot from {{view_type}} view")
+# Check this view supports the 3D operations we need (rule out
+# TechDraw, Spreadsheet, etc.). Do not identify it by class name:
+# FreeCAD's View3DInventor proxy has had both __class__ and type()
+# intermittently return a dict of methods instead of the real type,
+# across different FreeCAD versions, which crashes any name-based
+# check (see GitHub issue #82). Checking for the methods we actually
+# call below sidesteps that identity problem entirely.
+required_view_methods = (
+    "fitAll", "viewIsometric", "viewFront", "viewRear",
+    "viewTop", "viewBottom", "viewLeft", "viewRight", "saveImage",
+)
+if not all(hasattr(view, method) for method in required_view_methods):
+    raise ValueError("Cannot capture screenshot: active view does not support 3D view operations")
 
 # Set view angle
 view_type_str = {view_angle_str!r}
