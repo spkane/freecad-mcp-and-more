@@ -709,12 +709,14 @@ if view is None:
 # across different FreeCAD versions, which crashes any name-based
 # check (see GitHub issue #82). Checking for the methods we actually
 # call below sidesteps that identity problem entirely.
-required_view_methods = (
+requiredViewMethods = (
     "fitAll", "viewIsometric", "viewFront", "viewRear",
     "viewTop", "viewBottom", "viewLeft", "viewRight", "saveImage",
 )
-if not all(hasattr(view, method) for method in required_view_methods):
-    raise ValueError("Cannot capture screenshot: active view does not support 3D view operations")
+if not all(hasattr(view, method) for method in requiredViewMethods):
+    raise ValueError(
+        "Cannot capture screenshot: active view does not support 3D view operations"
+    )
 
 # Set view angle
 view_type_str = {view_angle_str!r}
