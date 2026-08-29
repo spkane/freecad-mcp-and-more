@@ -1123,7 +1123,11 @@ try:
 
     solver_status = int(sketch.solve())
     doc.recompute()
-    degrees_of_freedom = int(sketch.getLastDoF())
+    degrees_of_freedom = (
+        int(sketch.DoF)
+        if hasattr(sketch, "DoF")
+        else int(sketch.getLastDoF())
+    )
     fully_constrained = bool(sketch.FullyConstrained)
     if reject_solver_errors and solver_status != 0:
         raise RuntimeError(
@@ -4399,7 +4403,9 @@ expressions = {{
 }}
 solver_status = int(sketch.solve()) if hasattr(sketch, "solve") else None
 degrees_of_freedom = (
-    int(sketch.getLastDoF())
+    int(sketch.DoF)
+    if hasattr(sketch, "DoF")
+    else int(sketch.getLastDoF())
     if hasattr(sketch, "getLastDoF")
     else None
 )

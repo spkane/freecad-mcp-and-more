@@ -215,6 +215,7 @@ class TestPartDesignTools:
         assert "require_closed_profiles" in code
         assert "STALE_REVISION" in code
         assert "candidate.Content" in code
+        assert 'hasattr(sketch, "DoF")' in code
         assert "getLastDoF()" in code
         assert "solver_status = int(sketch.solve())" in code
         assert "if reject_solver_errors and solver_status != 0:" in code
@@ -1611,6 +1612,7 @@ class TestPartDesignTools:
         assert "except Exception as driving_error:" in code
         assert 'details["driving"] = None' in code
         assert 'details["driving_error"] = str(driving_error)' in code
+        assert 'hasattr(sketch, "DoF")' in code
         assert "sketch.getLastDoF()" in code
 
     @pytest.mark.asyncio

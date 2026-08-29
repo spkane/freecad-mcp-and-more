@@ -8,6 +8,8 @@ import textwrap
 
 WORKFLOW_HELPERS = r"""import hashlib
 
+_owned_transaction_id = None
+
 def _revision_update(digest, value):
     encoded = str(value).encode("utf-8", "backslashreplace")
     digest.update(len(encoded).to_bytes(8, "big"))
@@ -40,20 +42,57 @@ def require_expected_revision(document, expected_revision):
         )
     return current_revision
 
-def open_owned_transaction(document, name):
+def active_application_transaction():
+    application = globals().get("FreeCAD")
+    get_active_transaction = getattr(application, "getActiveTransaction", None)
+    if get_active_transaction is None:
+        return None
+    active_transaction = get_active_transaction()
+    if not isinstance(active_transaction, (tuple, list)):
+        return None
+    return active_transaction if len(active_transaction) > 1 and active_transaction[1] else None
+
+def has_open_transaction(document):
     if bool(getattr(document, "HasPendingTransaction", False)):
+        return True
+    # FreeCAD 1.1 books transactions lazily until the first document mutation.
+    get_booked_transaction_id = getattr(document, "getBookedTransactionID", None)
+    if get_booked_transaction_id and bool(get_booked_transaction_id()):
+        return True
+    return active_application_transaction() is not None
+
+def open_owned_transaction(document, name):
+    global _owned_transaction_id
+    _owned_transaction_id = None
+    if has_open_transaction(document):
         raise RuntimeError(
             "TRANSACTION_CONFLICT: Document already has a pending transaction"
         )
     if document.UndoMode == 0:
         document.UndoMode = 1
     document.openTransaction(name)
-    if not bool(getattr(document, "HasPendingTransaction", False)):
+    if not has_open_transaction(document):
         raise RuntimeError("BRIDGE_ERROR: Failed to open document transaction")
+    active_transaction = active_application_transaction()
+    if active_transaction is not None:
+        _owned_transaction_id = active_transaction[1]
 
 def abort_owned_transaction(document):
+    global _owned_transaction_id
     if bool(getattr(document, "HasPendingTransaction", False)):
         document.abortTransaction()
+        _owned_transaction_id = None
+        return
+    get_booked_transaction_id = getattr(document, "getBookedTransactionID", None)
+    if get_booked_transaction_id and bool(get_booked_transaction_id()):
+        document.abortTransaction()
+        _owned_transaction_id = None
+        return
+    active_transaction = active_application_transaction()
+    if active_transaction is not None and active_transaction[1] == _owned_transaction_id:
+        application = globals().get("FreeCAD")
+        application.closeActiveTransaction(True)
+    _owned_transaction_id = None
 """
 
 
