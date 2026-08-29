@@ -85,6 +85,7 @@ class ConstrainedSketchResult(MutationResult):
     entity_indices: dict[str, int | list[int]]
     constraint_indices: dict[str, int]
     generated_constraint_indices: dict[str, list[int]]
+    solved_geometry: dict[str, dict[str, Any]]
     geometry_count: int = Field(ge=0)
     constraint_count: int = Field(ge=0)
     solver: SolverSummary

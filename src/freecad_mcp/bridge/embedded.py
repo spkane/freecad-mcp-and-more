@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from freecad_mcp.bridge.base import (
+    PROPERTY_VALUE_SERIALIZER,
     ConnectionStatus,
     DocumentInfo,
     ExecutionResult,
@@ -239,6 +240,8 @@ else:
         """Get detailed object information."""
         result = await self.execute_python(
             f"""
+{PROPERTY_VALUE_SERIALIZER}
+
 doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
 if doc is None:
     raise ValueError("No document found")
@@ -250,10 +253,7 @@ if obj is None:
 props = {{}}
 for prop in obj.PropertiesList:
     try:
-        val = getattr(obj, prop)
-        if type(val).__module__ != 'builtins':
-            val = str(val)
-        props[prop] = val
+        props[prop] = serialize_property_value(getattr(obj, prop))
     except Exception:
         props[prop] = "<unreadable>"
 
@@ -281,7 +281,7 @@ _result_ = {{
         if result.success and result.result:
             return ObjectInfo(**result.result)
 
-        error_msg = result.error_traceback or "Failed to get object"
+        error_msg = result.error_traceback or result.stderr or "Failed to get object"
         raise ValueError(error_msg)
 
     async def get_console_output(

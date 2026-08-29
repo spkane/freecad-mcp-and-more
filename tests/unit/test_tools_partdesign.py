@@ -15,6 +15,7 @@ from freecad_mcp.tools.partdesign import (
     SketchReference,
     SketchValidation,
 )
+from freecad_mcp.tools.workflow_results import ConstrainedSketchResult
 
 
 class TestPartDesignTools:
@@ -149,6 +150,26 @@ class TestPartDesignTools:
                     },
                     "constraint_indices": {"base_horizontal": 8},
                     "generated_constraint_indices": {},
+                    "solved_geometry": {
+                        "base": {
+                            "kind": "line",
+                            "indices": [0],
+                            "geometry": [
+                                {
+                                    "index": 0,
+                                    "type": "LineSegment",
+                                    "start": [0.0, 0.0],
+                                    "end": [20.0, 0.0],
+                                }
+                            ],
+                            "bounds": {
+                                "min_x": 0.0,
+                                "min_y": 0.0,
+                                "max_x": 20.0,
+                                "max_y": 0.0,
+                            },
+                        }
+                    },
                     "geometry_count": 8,
                     "constraint_count": 9,
                     "solver": {
@@ -199,6 +220,10 @@ class TestPartDesignTools:
         )
 
         assert result["entity_indices"]["base"] == 0
+        assert result["solved_geometry"]["base"]["geometry"][0]["end"] == [
+            20.0,
+            0.0,
+        ]
         code = mock_bridge.execute_python.call_args.args[0]
         assert (
             code.count('open_owned_transaction(doc, "Create Constrained Sketch")') == 1
@@ -220,9 +245,30 @@ class TestPartDesignTools:
         assert "solver_status = int(sketch.solve())" in code
         assert "if reject_solver_errors and solver_status != 0:" in code
         assert "degrees_of_freedom = int(sketch.solve())" not in code
+        assert "def describe_solved_geometry(geometry_index):" in code
+        assert '"solved_geometry": solved_geometry' in code
+        assert code.index('"solved_geometry": solved_geometry') < code.index(
+            "doc.commitTransaction()"
+        )
         assert "abort_owned_transaction(doc)" in code
         assert code.index('"solver": {') < code.index("doc.commitTransaction()")
         compile(code, "<create_constrained_sketch>", "exec")
+
+    def test_sketch_constraint_schema_documents_signed_offsets(self):
+        """The tool schema should explain FreeCAD's signed offset ordering."""
+        description = " ".join(
+            SketchConstraint.model_json_schema()["description"].split()
+        )
+
+        assert "end minus start" in description
+        assert "second minus first" in description
+        assert "signed coordinate from the sketch origin" in description
+
+    def test_constrained_sketch_result_declares_solved_geometry(self):
+        """The response contract should expose solver-adjusted geometry."""
+        properties = ConstrainedSketchResult.model_json_schema()["properties"]
+
+        assert "solved_geometry" in properties
 
     @pytest.mark.asyncio
     async def test_create_constrained_sketch_rejects_duplicate_symbolic_ids(
@@ -742,6 +788,48 @@ class TestPartDesignTools:
         assert "abort_owned_transaction(doc)" in code
         assert "candidate.Content" in code
         assert code.index('"next_inputs"') < code.index("doc.commitTransaction()")
+        compile(code, f"<{tool_name}>", "exec")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("tool_name", "arguments"),
+        [
+            ("pocket_sketch", {"sketch_name": "Sketch", "length": 5}),
+            ("groove_sketch", {"sketch_name": "Sketch"}),
+            ("create_hole", {"sketch_name": "HoleSketch"}),
+            (
+                "subtractive_loft",
+                {"sketch_names": ["Sketch", "Sketch001"]},
+            ),
+            (
+                "subtractive_pipe",
+                {"profile_sketch": "Profile", "spine_sketch": "Spine"},
+            ),
+        ],
+    )
+    async def test_subtractive_features_reject_no_op_results(
+        self, register_tools, mock_bridge, tool_name, arguments
+    ):
+        """Subtractive features must remove a meaningful material volume."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={"name": "Feature"},
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        await register_tools[tool_name](**arguments)
+
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "input_volume = float(body.Shape.Volume)" in code
+        assert "removed_volume = input_volume - float(shape.Volume)" in code
+        assert "Subtractive feature removed no material" in code
+        assert "open_owned_transaction(doc," in code
+        assert "abort_owned_transaction(doc)" in code
+        assert code.index("removed_volume =") < code.index("doc.commitTransaction()")
         compile(code, f"<{tool_name}>", "exec")
 
     @pytest.mark.asyncio
@@ -1609,9 +1697,10 @@ class TestPartDesignTools:
         assert '"geometry": geometry' in code
         assert '"constraints": constraints' in code
         assert '"expressions": expressions' in code
-        assert "except Exception as driving_error:" in code
+        assert "driving_constraint_types" in code
+        assert "if str(item.Type) in driving_constraint_types:" in code
         assert 'details["driving"] = None' in code
-        assert 'details["driving_error"] = str(driving_error)' in code
+        assert "driving_error" not in code
         assert 'hasattr(sketch, "DoF")' in code
         assert "sketch.getLastDoF()" in code
 

@@ -15,6 +15,22 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+PROPERTY_VALUE_SERIALIZER = """
+def serialize_property_value(value):
+    if value is None or isinstance(value, (bool, float, str)):
+        return value
+    if isinstance(value, int):
+        return value if -(2 ** 31) <= value < 2 ** 31 else str(value)
+    if isinstance(value, dict):
+        return {
+            str(key): serialize_property_value(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple, set)):
+        return [serialize_property_value(item) for item in value]
+    return str(value)
+"""
+
 
 class ViewAngle(str, Enum):
     """Standard view angles for screenshots."""

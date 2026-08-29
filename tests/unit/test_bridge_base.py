@@ -1,5 +1,7 @@
 """Tests for bridge base classes."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from freecad_mcp.bridge.base import (
@@ -8,6 +10,9 @@ from freecad_mcp.bridge.base import (
     FreecadBridge,
     ObjectInfo,
 )
+from freecad_mcp.bridge.embedded import EmbeddedBridge
+from freecad_mcp.bridge.socket import SocketBridge
+from freecad_mcp.bridge.xmlrpc import XmlRpcBridge
 
 
 class TestExecutionResult:
@@ -125,3 +130,30 @@ class TestFreecadBridgeInterface:
 
         with pytest.raises(TypeError):
             IncompleteBridge()  # type: ignore[abstract]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bridge_type", [XmlRpcBridge, SocketBridge, EmbeddedBridge])
+async def test_get_object_preserves_transport_stderr(bridge_type) -> None:
+    """Object inspection should expose transport failures from every bridge."""
+    bridge = bridge_type()
+    execute_python = AsyncMock(
+        return_value=ExecutionResult(
+            success=False,
+            result=None,
+            stdout="",
+            stderr="bridge transport unavailable",
+            execution_time_ms=1.0,
+            error_type="ConnectionError",
+        )
+    )
+
+    try:
+        with (
+            patch.object(bridge, "execute_python", execute_python),
+            pytest.raises(ValueError, match="bridge transport unavailable"),
+        ):
+            await bridge.get_object("Body")
+    finally:
+        if isinstance(bridge, EmbeddedBridge):
+            await bridge.disconnect()

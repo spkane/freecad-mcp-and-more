@@ -118,7 +118,11 @@ SketchEntity = Annotated[
 
 
 class SketchReference(BaseModel):
-    """Reference a request-local entity or rectangle edge by symbolic ID."""
+    """Reference a request-local entity or rectangle edge by symbolic ID.
+
+    For signed ``distance_x`` and ``distance_y`` constraints, reference order is
+    significant: two point references measure second minus first.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -146,7 +150,13 @@ SketchConstraintKind = Literal[
 
 
 class SketchConstraint(BaseModel):
-    """A geometric or dimensional constraint over symbolic references."""
+    """A geometric or dimensional constraint over symbolic references.
+
+    ``distance_x`` and ``distance_y`` use FreeCAD's signed conventions. A whole
+    line measures end minus start, one point reference measures its signed
+    coordinate from the sketch origin, and two point references measure second
+    minus first. Reverse the references or value sign to reverse the direction.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -311,6 +321,32 @@ if validation_errors:
 """
 
 
+_SUBTRACTIVE_INPUT_VALIDATION = """
+if not hasattr(body, "Shape") or body.Shape.isNull():
+    raise RuntimeError(
+        "VALIDATION_FAILED: Subtractive feature requires an existing solid"
+    )
+if not body.Shape.isValid() or len(body.Shape.Solids) != 1:
+    raise RuntimeError(
+        "VALIDATION_FAILED: Subtractive feature requires one valid input solid"
+    )
+input_volume = float(body.Shape.Volume)
+"""
+
+
+_MATERIAL_REMOVAL_VALIDATION = """
+shape = feature_shape
+removed_volume = input_volume - float(shape.Volume)
+volume_tolerance = max(1e-9, abs(input_volume) * 1e-9)
+if removed_volume <= volume_tolerance:
+    raise RuntimeError(
+        "VALIDATION_FAILED: Subtractive feature removed no material "
+        "(input volume %.12g, result volume %.12g)"
+        % (input_volume, float(shape.Volume))
+    )
+"""
+
+
 _FEATURE_RESULT_TEMPLATE = """
 import uuid
 
@@ -373,11 +409,18 @@ _result_ = {
 """
 
 
-def _feature_validation_code(feature_variable: str, body_variable: str = "body") -> str:
+def _feature_validation_code(
+    feature_variable: str,
+    body_variable: str = "body",
+    *,
+    require_material_removal: bool = False,
+) -> str:
     """Build embedded FreeCAD validation for one newly created feature."""
     code = _FEATURE_VALIDATION_TEMPLATE.replace(
         "__FEATURE__", feature_variable
     ).replace("__BODY__", body_variable)
+    if require_material_removal:
+        code += _MATERIAL_REMOVAL_VALIDATION
     return "\n".join(f"    {line}" if line else "" for line in code.splitlines())
 
 
@@ -720,7 +763,10 @@ _result_ = {{
 
         Entity and constraint IDs are request-local symbolic references. Rectangle
         edges are addressable as ``<id>.bottom``, ``<id>.right``, ``<id>.top``,
-        and ``<id>.left``. The response maps each symbolic ID to its native index.
+        and ``<id>.left``. Signed X/Y distances use end-minus-start for a whole
+        line, the point coordinate from the origin for one reference, and
+        second-minus-first for two point references. The response maps each
+        symbolic ID to its native index and solver-adjusted geometry.
 
         Args:
             body_name: Existing PartDesign Body that will own the sketch.
@@ -734,7 +780,8 @@ _result_ = {{
             doc_name: Target document. Uses the active document when omitted.
 
         Returns:
-            Created sketch, symbolic index maps, solver state, warnings, and revision.
+            Created sketch, symbolic index maps, solved geometry, solver state,
+            warnings, and revision.
         """
         if not body_name or not sketch_name:
             msg = "Body and sketch names must not be empty"
@@ -831,6 +878,59 @@ policy = {validation_data!r}
 require_fully_constrained = policy["require_fully_constrained"]
 require_closed_profiles = policy["require_closed_profiles"]
 reject_solver_errors = policy["reject_solver_errors"]
+
+def vector_xy(vector):
+    x = getattr(vector, "x", None)
+    y = getattr(vector, "y", None)
+    if x is None:
+        x = getattr(vector, "X")
+    if y is None:
+        y = getattr(vector, "Y")
+    return [float(x), float(y)]
+
+def describe_solved_geometry(geometry_index):
+    geometry = sketch.Geometry[geometry_index]
+    details = {{
+        "index": int(geometry_index),
+        "type": type(geometry).__name__,
+    }}
+    for attribute, key in (
+        ("StartPoint", "start"),
+        ("EndPoint", "end"),
+        ("Center", "center"),
+        ("Location", "position"),
+    ):
+        try:
+            details[key] = vector_xy(getattr(geometry, attribute))
+        except Exception:
+            pass
+    if "position" not in details and hasattr(geometry, "X"):
+        try:
+            details["position"] = [float(geometry.X), float(geometry.Y)]
+        except Exception:
+            pass
+    for attribute, key in (
+        ("Radius", "radius"),
+        ("MajorRadius", "major_radius"),
+        ("MinorRadius", "minor_radius"),
+        ("FirstParameter", "start_parameter"),
+        ("LastParameter", "end_parameter"),
+    ):
+        try:
+            details[key] = float(getattr(geometry, attribute))
+        except Exception:
+            pass
+    try:
+        bound_box = geometry.toShape().BoundBox
+        details["bounds"] = {{
+            "min_x": float(bound_box.XMin),
+            "min_y": float(bound_box.YMin),
+            "max_x": float(bound_box.XMax),
+            "max_y": float(bound_box.YMax),
+        }}
+    except Exception:
+        details["bounds"] = None
+    return details
 
 open_owned_transaction(doc, "Create Constrained Sketch")
 try:
@@ -1172,6 +1272,29 @@ try:
     if open_profiles:
         warnings.append("Sketch contains %d open profiles" % open_profiles)
 
+    solved_geometry = {{}}
+    for entity in entities:
+        raw_indices = entity_indices[entity["id"]]
+        indices = raw_indices if isinstance(raw_indices, list) else [raw_indices]
+        geometry = [describe_solved_geometry(index) for index in indices]
+        geometry_bounds = [
+            item["bounds"] for item in geometry if item["bounds"] is not None
+        ]
+        bounds = None
+        if geometry_bounds:
+            bounds = {{
+                "min_x": min(item["min_x"] for item in geometry_bounds),
+                "min_y": min(item["min_y"] for item in geometry_bounds),
+                "max_x": max(item["max_x"] for item in geometry_bounds),
+                "max_y": max(item["max_y"] for item in geometry_bounds),
+            }}
+        solved_geometry[entity["id"]] = {{
+            "kind": entity["kind"],
+            "indices": [int(index) for index in indices],
+            "geometry": geometry,
+            "bounds": bounds,
+        }}
+
     _result_ = {{
         "document_ref": {{
             "name": doc.Name,
@@ -1190,6 +1313,7 @@ try:
         "entity_indices": entity_indices,
         "constraint_indices": constraint_indices,
         "generated_constraint_indices": generated_constraint_indices,
+        "solved_geometry": solved_geometry,
         "geometry_count": int(sketch.GeometryCount),
         "constraint_count": int(sketch.ConstraintCount),
         "solver": {{
@@ -1495,6 +1619,8 @@ for obj in doc.Objects:
 if body is None:
     raise ValueError("Sketch must be inside a PartDesign Body for Pocket operation")
 
+{_SUBTRACTIVE_INPUT_VALIDATION}
+
 open_owned_transaction(doc, "Pocket Sketch")
 try:
     pocket_name = {name!r} or "Pocket"
@@ -1504,7 +1630,7 @@ try:
     pocket.Type = {type!r}
 
     doc.recompute()
-{_feature_validation_code("pocket")}
+{_feature_validation_code("pocket", require_material_removal=True)}
 {_feature_result_code()}
     doc.commitTransaction()
 except Exception:
@@ -1911,6 +2037,8 @@ for obj in doc.Objects:
 if body is None:
     raise ValueError("Sketch must be inside a PartDesign Body for Groove operation")
 
+{_SUBTRACTIVE_INPUT_VALIDATION}
+
 open_owned_transaction(doc, "Groove Sketch")
 try:
     groove_name = {name!r} or "Groove"
@@ -1936,7 +2064,7 @@ try:
             groove.ReferenceAxis = (sketch, ["H_Axis"])
 
     doc.recompute()
-{_feature_validation_code("groove")}
+{_feature_validation_code("groove", require_material_removal=True)}
 {_feature_result_code()}
     doc.commitTransaction()
 except Exception:
@@ -2023,6 +2151,8 @@ for obj in doc.Objects:
 if body is None:
     raise ValueError("Sketch must be inside a PartDesign Body for Hole operation")
 
+{_SUBTRACTIVE_INPUT_VALIDATION}
+
 open_owned_transaction(doc, "Create Hole")
 try:
     hole_name = {name!r} or "Hole"
@@ -2049,7 +2179,7 @@ try:
         hole.Diameter = {diameter}
 
     doc.recompute()
-{_feature_validation_code("hole")}
+{_feature_validation_code("hole", require_material_removal=True)}
 {_feature_result_code()}
     doc.commitTransaction()
 except Exception:
@@ -3157,6 +3287,8 @@ except Exception:
         bridge = await get_bridge()
 
         code = f"""
+{WORKFLOW_HELPERS}
+
 doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
 if doc is None:
     raise ValueError("No document found")
@@ -3182,8 +3314,9 @@ for obj in doc.Objects:
 if body is None:
     raise ValueError("Sketches must be inside a PartDesign Body")
 
-# Wrap in transaction for undo support
-doc.openTransaction("Subtractive Loft")
+{_SUBTRACTIVE_INPUT_VALIDATION}
+
+open_owned_transaction(doc, "Subtractive Loft")
 try:
     loft_name = {name!r} or "SubtractiveLoft"
     loft = body.newObject("PartDesign::SubtractiveLoft", loft_name)
@@ -3193,6 +3326,7 @@ try:
     loft.Closed = {closed}
 
     doc.recompute()
+{_feature_validation_code("loft", require_material_removal=True)}
     doc.commitTransaction()
 
     _result_ = {{
@@ -3201,7 +3335,8 @@ try:
         "type_id": loft.TypeId,
     }}
 except Exception:
-    doc.abortTransaction()
+    abort_owned_transaction(doc)
+    doc.recompute()
     raise
 """
         result = await bridge.execute_python(code)
@@ -3247,6 +3382,8 @@ except Exception:
             raise ValueError(f"Invalid transition: {transition}")
 
         code = f"""
+{WORKFLOW_HELPERS}
+
 doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
 if doc is None:
     raise ValueError("No document found")
@@ -3270,8 +3407,9 @@ for obj in doc.Objects:
 if body is None:
     raise ValueError("Sketches must be inside a PartDesign Body")
 
-# Wrap in transaction for undo support
-doc.openTransaction("Subtractive Pipe")
+{_SUBTRACTIVE_INPUT_VALIDATION}
+
+open_owned_transaction(doc, "Subtractive Pipe")
 try:
     pipe_name = {name!r} or "SubtractivePipe"
     pipe = body.newObject("PartDesign::SubtractivePipe", pipe_name)
@@ -3280,6 +3418,7 @@ try:
     pipe.Transition = {transition_map[transition]}
 
     doc.recompute()
+{_feature_validation_code("pipe", require_material_removal=True)}
     doc.commitTransaction()
 
     _result_ = {{
@@ -3288,7 +3427,8 @@ try:
         "type_id": pipe.TypeId,
     }}
 except Exception:
-    doc.abortTransaction()
+    abort_owned_transaction(doc)
+    doc.recompute()
     raise
 """
         result = await bridge.execute_python(code)
@@ -4367,6 +4507,15 @@ for index, item in enumerate(sketch.Geometry):
             details[attribute.lower()] = float(value)
     geometry.append(details)
 
+driving_constraint_types = {{
+    "Angle",
+    "AngleViaPoint",
+    "Diameter",
+    "Distance",
+    "DistanceX",
+    "DistanceY",
+    "Radius",
+}}
 constraints = []
 for index, item in enumerate(sketch.Constraints):
     details = {{
@@ -4390,11 +4539,12 @@ for index, item in enumerate(sketch.Constraints):
             details["value"] = float(value)
         except (TypeError, ValueError):
             details["value"] = str(value)
-    try:
-        details["driving"] = bool(sketch.getDriving(index))
-    except Exception as driving_error:
-        details["driving"] = None
-        details["driving_error"] = str(driving_error)
+    details["driving"] = None
+    if str(item.Type) in driving_constraint_types:
+        try:
+            details["driving"] = bool(sketch.getDriving(index))
+        except Exception:
+            pass
     constraints.append(details)
 
 expressions = {{

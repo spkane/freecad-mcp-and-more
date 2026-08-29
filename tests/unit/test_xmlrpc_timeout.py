@@ -7,10 +7,11 @@ import sys
 import threading
 import time
 import xmlrpc.client
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
+from freecad_mcp.bridge.base import ExecutionResult
 from freecad_mcp.bridge.xmlrpc import XmlRpcBridge
 
 
@@ -135,6 +136,65 @@ async def test_xmlrpc_client_preserves_server_error_message() -> None:
 
 
 @pytest.mark.asyncio
+async def test_xmlrpc_client_preserves_transport_exception_details() -> None:
+    """Marshaller failures should reach the bridge method that requested data."""
+    bridge = XmlRpcBridge()
+    proxy = MagicMock()
+    proxy.execute.side_effect = [
+        {"success": True, "result": None},
+        TypeError("cannot marshal FreeCAD property wrapper"),
+    ]
+    bridge._proxy = proxy
+
+    with pytest.raises(ValueError, match="cannot marshal FreeCAD property wrapper"):
+        await bridge.get_object("Groove")
+
+
+@pytest.mark.asyncio
+async def test_get_object_recursively_serializes_property_values() -> None:
+    """Nested FreeCAD values should be safe before crossing XML-RPC."""
+    bridge = XmlRpcBridge()
+    execute_python = AsyncMock(
+        return_value=ExecutionResult(
+            success=True,
+            result={
+                "name": "Groove",
+                "label": "Groove",
+                "type_id": "PartDesign::Groove",
+            },
+            stdout="",
+            stderr="",
+            execution_time_ms=1.0,
+        )
+    )
+
+    with patch.object(bridge, "execute_python", execute_python):
+        await bridge.get_object("Groove")
+
+    code = execute_python.call_args.args[0]
+    serializer_source = code.split("doc =", 1)[0]
+    namespace: dict[str, object] = {}
+    exec(serializer_source, namespace)  # noqa: S102
+
+    class WrappedValue:
+        def __str__(self) -> str:
+            return "<PartDesign::Feature reference>"
+
+    serialize = namespace["serialize_property_value"]
+    serialized = serialize(  # type: ignore[operator]
+        {"Profile": (WrappedValue(), ["Edge1", WrappedValue()])}
+    )
+
+    assert serialized == {
+        "Profile": [
+            "<PartDesign::Feature reference>",
+            ["Edge1", "<PartDesign::Feature reference>"],
+        ]
+    }
+    xmlrpc.client.dumps((serialized,), allow_none=True)
+
+
+@pytest.mark.asyncio
 async def test_timed_out_client_call_does_not_reuse_busy_proxy() -> None:
     """A request waiting behind a timed-out call must not execute later."""
     bridge = XmlRpcBridge()
@@ -185,6 +245,11 @@ def test_xmlrpc_server_uses_requested_execution_timeout() -> None:
 
 def test_xmlrpc_server_sanitizes_unrepresentable_results() -> None:
     """Responses should survive XML 1.0 parsing after successful execution."""
+
+    class WrappedValue:
+        def __str__(self) -> str:
+            return "<PartDesign::Feature reference>"
+
     freecad = MagicMock()
     freecad.GuiUp = False
     with patch.dict(
@@ -201,6 +266,7 @@ def test_xmlrpc_server_sanitizes_unrepresentable_results() -> None:
                 "result": {
                     "label": "control\x00character\x01",
                     "large_integer": 2**40,
+                    "nested_wrapper": (WrappedValue(), [WrappedValue()]),
                 },
             }
         )
@@ -211,6 +277,10 @@ def test_xmlrpc_server_sanitizes_unrepresentable_results() -> None:
 
     assert result["result"]["label"] == "control\ufffdcharacter\ufffd"
     assert result["result"]["large_integer"] == str(2**40)
+    assert result["result"]["nested_wrapper"] == [
+        "<PartDesign::Feature reference>",
+        ["<PartDesign::Feature reference>"],
+    ]
     assert decoded[0] == result
 
 

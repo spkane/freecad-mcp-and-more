@@ -28,7 +28,10 @@ Prefer task-oriented operations that complete one coherent modeling step:
 3. Call `create_constrained_sketch` with typed lines, arcs, circles, rectangles,
    points, and constraints. Use request-local symbolic IDs instead of guessing
    geometry indices. Require closed profiles and `FullyConstrained` when the
-   sketch is ready to drive a solid feature.
+   sketch is ready to drive a solid feature. For signed `distance_x` and
+   `distance_y`, a whole line measures end minus start, one point measures its
+   coordinate from the sketch origin, and two points measure second minus first.
+   Check the returned `solved_geometry` before creating the dependent feature.
 4. Call `bind_expressions` once for a related group of feature properties or
    sketch dimensions. Constraint paths use forms such as `Constraints[8]`, and
    qualified variable references use forms such as `Variables.tower_height`.

@@ -69,7 +69,9 @@ def _xmlrpc_safe_value(value: Any) -> Any:
         }
     if isinstance(value, list | tuple | set):
         return [_xmlrpc_safe_value(item) for item in value]
-    return value
+    if value is None or isinstance(value, bool | float):
+        return value
+    return _xmlrpc_safe_text(str(value))
 
 
 def _get_shiboken_delete() -> Any:
