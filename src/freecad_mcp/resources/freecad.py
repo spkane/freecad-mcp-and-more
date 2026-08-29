@@ -403,17 +403,12 @@ undo()  # Reverts the box creation""",
                 },
             },
             "version_compatibility": {
-                "description": "FreeCAD API changes across versions",
+                "description": "FreeCAD 1.0+ API requirements",
                 "critical_changes": {
                     "sketch_attachment": {
-                        "versions_affected": "FreeCAD 1.0+ vs earlier",
-                        "old_api": "sketch.Support = (plane_obj, [''])",
-                        "new_api": "sketch.AttachmentSupport = [(plane_obj, '')]",
-                        "safe_pattern": """Use hasattr to detect:
-if hasattr(sketch, 'AttachmentSupport'):
-    sketch.AttachmentSupport = [(plane_obj, '')]
-else:
-    sketch.Support = (plane_obj, [''])
+                        "supported_version": "FreeCAD 1.0+",
+                        "api": "sketch.AttachmentSupport = [(plane_obj, '')]",
+                        "pattern": """sketch.AttachmentSupport = [(plane_obj, '')]
 sketch.MapMode = 'FlatFace'""",
                     },
                     "body_object_creation": {
@@ -671,6 +666,11 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                             "key_params": ["doc_name"],
                         },
                         {
+                            "name": "query_objects",
+                            "description": "Filter and page through document objects",
+                            "key_params": ["query", "names", "type_ids", "limit"],
+                        },
+                        {
                             "name": "inspect_object",
                             "description": "Get detailed info about an object",
                             "key_params": ["object_name", "doc_name"],
@@ -892,6 +892,11 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                             "name": "create_sketch",
                             "description": "Create sketch on plane or face",
                             "key_params": ["body_name", "plane"],
+                        },
+                        {
+                            "name": "create_constrained_sketch",
+                            "description": "Create typed geometry and constraints atomically",
+                            "key_params": ["body_name", "sketch_name", "entities"],
                         },
                         {
                             "name": "add_sketch_rectangle",
@@ -1382,6 +1387,35 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                         },
                     ],
                 },
+                "variables": {
+                    "description": "Native variables and expression bindings",
+                    "tools": [
+                        {
+                            "name": "define_variables",
+                            "description": "Create or update an App::VarSet batch",
+                            "key_params": ["variable_set_name", "variables"],
+                        },
+                        {
+                            "name": "get_variables",
+                            "description": "Inspect native variable values and expressions",
+                            "key_params": ["variable_set_name"],
+                        },
+                        {
+                            "name": "bind_expressions",
+                            "description": "Apply expression bindings atomically",
+                            "key_params": ["bindings", "expected_revision"],
+                        },
+                        {
+                            "name": "set_expression",
+                            "description": "Set or clear one expression binding",
+                            "key_params": [
+                                "object_name",
+                                "property_path",
+                                "expression",
+                            ],
+                        },
+                    ],
+                },
                 "export_import": {
                     "description": "File export and import",
                     "tools": [
@@ -1554,53 +1588,53 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
             ],
             "prompts": [
                 {
-                    "name": "freecad-startup",
+                    "name": "freecad_startup",
                     "description": "★ RECOMMENDED: Auto-load on connection - Essential startup guidance and session checklist",
                     "key_params": [],
                 },
                 {
-                    "name": "freecad-guidance",
+                    "name": "freecad_guidance",
                     "description": "Task-specific AI guidance (general, partdesign, sketching, boolean, export, debugging, validation)",
                     "key_params": ["task_type"],
                 },
                 {
-                    "name": "design-part",
+                    "name": "design_part",
                     "description": "Guided workflow for designing parametric parts",
                     "key_params": ["description", "units"],
                 },
                 {
-                    "name": "create-sketch-guide",
+                    "name": "create_sketch_guide",
                     "description": "Guide for creating 2D sketches",
                     "key_params": ["shape_type", "plane"],
                 },
                 {
-                    "name": "boolean-operations-guide",
+                    "name": "boolean_operations_guide",
                     "description": "Guide for boolean operations (fuse, cut, common)",
                 },
                 {
-                    "name": "export-guide",
+                    "name": "export_guide",
                     "description": "Guide for exporting models (STEP, STL, OBJ, IGES)",
                     "key_params": ["target_format"],
                 },
                 {
-                    "name": "import-guide",
+                    "name": "import_guide",
                     "description": "Guide for importing files",
                     "key_params": ["source_format"],
                 },
                 {
-                    "name": "analyze-shape",
+                    "name": "analyze_shape",
                     "description": "Guide for shape analysis (volume, area, etc.)",
                 },
                 {
-                    "name": "debug-model",
+                    "name": "debug_model",
                     "description": "Troubleshooting guide for model issues",
                 },
                 {
-                    "name": "macro-development",
+                    "name": "macro_development",
                     "description": "Guide for developing FreeCAD macros",
                 },
                 {
-                    "name": "python-api-reference",
+                    "name": "python_api_reference",
                     "description": "Quick reference for FreeCAD Python API",
                 },
                 {

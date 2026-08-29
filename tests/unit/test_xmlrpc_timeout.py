@@ -1,0 +1,258 @@
+"""Regression tests for XML-RPC execution timeout propagation."""
+
+from __future__ import annotations
+
+import asyncio
+import sys
+import threading
+import time
+import xmlrpc.client
+from unittest.mock import MagicMock, call, patch
+
+import pytest
+
+from freecad_mcp.bridge.xmlrpc import XmlRpcBridge
+
+
+def _clear_workbench_server() -> None:
+    """Remove cached workbench server imports before mocking FreeCAD."""
+    for module_name in list(sys.modules):
+        if module_name.endswith("freecad_mcp_bridge.server"):
+            del sys.modules[module_name]
+
+
+@pytest.mark.asyncio
+async def test_xmlrpc_client_forwards_execution_timeout() -> None:
+    """The client should pass its requested timeout to the bridge server."""
+    bridge = XmlRpcBridge()
+    proxy = MagicMock()
+    proxy.execute.return_value = {
+        "success": True,
+        "result": "ok",
+        "stdout": "",
+        "stderr": "",
+        "execution_time_ms": 1.0,
+    }
+    bridge._proxy = proxy
+
+    result = await bridge.execute_python("_result_ = 'ok'", timeout_ms=120000)
+
+    assert result.success is True
+    assert proxy.execute.call_args_list == [
+        call("_result_ = None", 1000),
+        call("_result_ = 'ok'", 120000),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_xmlrpc_client_falls_back_for_legacy_server() -> None:
+    """A one-argument legacy server should remain usable."""
+    bridge = XmlRpcBridge()
+    proxy = MagicMock()
+    proxy.execute.side_effect = [
+        xmlrpc.client.Fault(
+            1,
+            "_xmlrpc_execute() takes 2 positional arguments but 3 were given",
+        ),
+        {"success": True, "result": "ok"},
+    ]
+    bridge._proxy = proxy
+
+    result = await bridge.execute_python("_result_ = 'ok'", timeout_ms=120000)
+
+    assert result.success is True
+    assert proxy.execute.call_args_list == [
+        call("_result_ = None", 1000),
+        call("_result_ = 'ok'"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_user_fault_does_not_retry_mutating_code() -> None:
+    """A user-code arity error must not trigger legacy protocol fallback."""
+    bridge = XmlRpcBridge()
+    proxy = MagicMock()
+    proxy.execute.side_effect = [
+        {"success": True, "result": None},
+        xmlrpc.client.Fault(1, "worker() takes 1 positional argument but 2 were given"),
+    ]
+    bridge._proxy = proxy
+
+    result = await bridge.execute_python("mutate_then_fail()", timeout_ms=120000)
+
+    assert result.success is False
+    assert result.error_type == "Fault"
+    assert proxy.execute.call_args_list == [
+        call("_result_ = None", 1000),
+        call("mutate_then_fail()", 120000),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_legacy_retry_does_not_start_after_execution_deadline() -> None:
+    """A delayed arity fault must not permit an expired legacy retry."""
+    bridge = XmlRpcBridge()
+    proxy = MagicMock()
+
+    def delayed_fault(*args: object) -> dict[str, object]:
+        if len(args) == 2:
+            time.sleep(0.02)
+            raise xmlrpc.client.Fault(
+                1, "_xmlrpc_execute() takes 2 positional arguments but 3 were given"
+            )
+        return {"success": True}
+
+    proxy.execute.side_effect = delayed_fault
+    bridge._proxy = proxy
+
+    result = await bridge.execute_python("long_job()", timeout_ms=10)
+
+    assert result.error_type == "TimeoutError"
+    assert result.execution_continues is False
+    assert proxy.execute.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_xmlrpc_client_preserves_server_error_message() -> None:
+    """Structured server timeout details should reach MCP tool callers."""
+    bridge = XmlRpcBridge()
+    proxy = MagicMock()
+    proxy.execute.return_value = {
+        "success": False,
+        "result": None,
+        "error_type": "TimeoutError",
+        "error_message": "Execution timed out after 120000ms",
+        "execution_continues": True,
+    }
+    bridge._proxy = proxy
+
+    result = await bridge.execute_python("slow_operation()", timeout_ms=120000)
+
+    assert result.success is False
+    assert result.error_type == "TimeoutError"
+    assert result.error_traceback == "Execution timed out after 120000ms"
+    assert result.execution_continues is True
+
+
+@pytest.mark.asyncio
+async def test_timed_out_client_call_does_not_reuse_busy_proxy() -> None:
+    """A request waiting behind a timed-out call must not execute later."""
+    bridge = XmlRpcBridge()
+    proxy = MagicMock()
+    entered = threading.Event()
+    release = threading.Event()
+
+    def blocking_execute(*_args: object) -> dict[str, object]:
+        entered.set()
+        release.wait(timeout=1)
+        return {"success": True, "result": "late"}
+
+    proxy.execute.side_effect = blocking_execute
+    bridge._proxy = proxy
+
+    first = asyncio.create_task(bridge.execute_python("first()", timeout_ms=100))
+    assert await asyncio.to_thread(entered.wait, 1)
+    second = asyncio.create_task(bridge.execute_python("second()", timeout_ms=10))
+    await asyncio.sleep(0.05)
+    release.set()
+    first_result, second_result = await asyncio.gather(first, second)
+
+    await asyncio.sleep(0.05)
+    assert first_result.success is True
+    assert second_result.error_type == "TimeoutError"
+    assert proxy.execute.call_count == 2
+
+
+def test_xmlrpc_server_uses_requested_execution_timeout() -> None:
+    """The server should not replace a caller timeout with 30 seconds."""
+    freecad = MagicMock()
+    freecad.GuiUp = False
+    with patch.dict(
+        sys.modules,
+        {"FreeCAD": freecad, "FreeCADGui": MagicMock()},
+    ):
+        _clear_workbench_server()
+        from freecad.RobustMCPBridge.freecad_mcp_bridge import server
+
+        plugin = server.FreecadMCPPlugin()
+        execute = MagicMock(return_value={"success": True})
+        with patch.object(plugin, "_execute_via_queue", execute):
+            result = plugin._xmlrpc_execute("_result_ = True", 120000)
+
+    assert result == {"success": True}
+    execute.assert_called_once_with("_result_ = True", 120000)
+
+
+def test_xmlrpc_server_sanitizes_unrepresentable_results() -> None:
+    """Responses should survive XML 1.0 parsing after successful execution."""
+    freecad = MagicMock()
+    freecad.GuiUp = False
+    with patch.dict(
+        sys.modules,
+        {"FreeCAD": freecad, "FreeCADGui": MagicMock()},
+    ):
+        _clear_workbench_server()
+        from freecad.RobustMCPBridge.freecad_mcp_bridge import server
+
+        plugin = server.FreecadMCPPlugin()
+        execute = MagicMock(
+            return_value={
+                "success": True,
+                "result": {
+                    "label": "control\x00character\x01",
+                    "large_integer": 2**40,
+                },
+            }
+        )
+        with patch.object(plugin, "_execute_via_queue", execute):
+            result = plugin._xmlrpc_execute("_result_ = True")
+        payload = xmlrpc.client.dumps((result,), allow_none=True)
+        decoded, _ = xmlrpc.client.loads(payload)
+
+    assert result["result"]["label"] == "control\ufffdcharacter\ufffd"
+    assert result["result"]["large_integer"] == str(2**40)
+    assert decoded[0] == result
+
+
+def test_timed_out_queued_request_is_not_executed_later() -> None:
+    """A request that expires in the queue must not execute after its caller left."""
+    freecad = MagicMock()
+    freecad.GuiUp = False
+    with patch.dict(
+        sys.modules,
+        {"FreeCAD": freecad, "FreeCADGui": MagicMock()},
+    ):
+        _clear_workbench_server()
+        from freecad.RobustMCPBridge.freecad_mcp_bridge import server
+
+        plugin = server.FreecadMCPPlugin()
+        plugin._running = True
+        execute = MagicMock(return_value={"success": True})
+        with patch.object(plugin, "_execute_code_sync", execute):
+            result = plugin._execute_via_queue("_result_ = True", timeout_ms=1)
+            plugin._process_queue()
+
+    assert result["error_type"] == "TimeoutError"
+    execute.assert_not_called()
+
+
+def test_started_request_blocks_follow_up_execution() -> None:
+    """A timed-out running request should keep the bridge busy until completion."""
+    freecad = MagicMock()
+    freecad.GuiUp = False
+    with patch.dict(
+        sys.modules,
+        {"FreeCAD": freecad, "FreeCADGui": MagicMock()},
+    ):
+        _clear_workbench_server()
+        from freecad.RobustMCPBridge.freecad_mcp_bridge import server
+
+        plugin = server.FreecadMCPPlugin()
+        request = server.ExecutionRequest("first()")
+        assert request.start_if_pending()
+        with patch.object(server, "ExecutionRequest", return_value=request):
+            first = plugin._execute_via_queue("first()", timeout_ms=1)
+            second = plugin._execute_via_queue("second()", timeout_ms=1)
+
+    assert first["execution_continues"] is True
+    assert second["error_type"] == "BusyError"

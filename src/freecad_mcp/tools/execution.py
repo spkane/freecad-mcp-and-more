@@ -48,6 +48,7 @@ def register_execution_tools(
                 - execution_time_ms: Time taken in milliseconds
                 - error_type: Type of exception if failed (None if success)
                 - error_traceback: Full traceback if failed (None if success)
+                - execution_continues: Whether timed-out code is still running
 
         Example:
             Create a simple box and return its volume::
@@ -78,6 +79,7 @@ def register_execution_tools(
             "execution_time_ms": result.execution_time_ms,
             "error_type": result.error_type,
             "error_traceback": result.error_traceback,
+            "execution_continues": result.execution_continues,
         }
 
     @mcp.tool()
@@ -86,7 +88,7 @@ def register_execution_tools(
 
         Returns:
             Dictionary containing version information:
-                - version: Version string (e.g., "0.21.2")
+                - version: Version string (e.g., "1.0.0")
                 - version_tuple: Version as list of integers
                 - build_date: Build date string
                 - python_version: Embedded Python version

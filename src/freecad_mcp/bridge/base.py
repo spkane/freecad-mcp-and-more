@@ -53,6 +53,7 @@ class ExecutionResult:
         execution_time_ms: Time taken in milliseconds.
         error_type: Type of exception if failed, None otherwise.
         error_traceback: Full traceback if failed, None otherwise.
+        execution_continues: Whether timed-out work is still running in FreeCAD.
     """
 
     success: bool
@@ -62,6 +63,7 @@ class ExecutionResult:
     execution_time_ms: float
     error_type: str | None = None
     error_traceback: str | None = None
+    execution_continues: bool = False
 
 
 @dataclass

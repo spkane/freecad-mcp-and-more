@@ -1771,7 +1771,11 @@ Each component has its own `RELEASE_NOTES.md` file that is updated before releas
 
 ## FreeCAD Robust MCP Tools Reference
 
-When Claude Code is connected to the FreeCAD Robust MCP server, the following tools are available for interacting with FreeCAD. Use these tools to control FreeCAD, create/modify objects, and debug issues.
+The default `parametric` profile exposes 54 tools for task-oriented native
+PartDesign construction. Agents create Bodies, native variable sets, complete
+constrained sketches, expression batches, and validated additive or subtractive
+features through typed MCP commands. The broader catalog later in this section
+applies only when `FREECAD_TOOL_PROFILE=full`.
 
 ### Discovering Capabilities at Runtime
 
@@ -1779,26 +1783,27 @@ The MCP server provides a `freecad://capabilities` resource that returns a compl
 
 ### Updating Documentation When Tools Change
 
-**CRITICAL**: When adding, modifying, or removing MCP tools, you MUST update ALL of these files:
+**CRITICAL**: When adding, modifying, or removing default MCP tools, update all
+of these files:
 
 | File                                   | What to Update                                    |
 | -------------------------------------- | ------------------------------------------------- |
-| `src/freecad_mcp/resources/freecad.py` | `freecad://capabilities` resource (tool catalog)  |
-| `src/freecad_mcp/prompts/freecad.py`   | AI guidance prompts (tool references, workflows)  |
+| `resources/parametric.py`              | Default capabilities and resource catalog         |
+| `prompts/parametric.py`                | Focused design and review prompts                 |
+| `PARAMETRIC_PARTS_GUIDE.md`            | Canonical agent workflow                          |
 | `docs/guide/tools.md`                  | User-facing tool reference (categories, tables)   |
 | `CLAUDE.md` (this file)                | Tools Reference section (if adding new category)  |
 
 **What to update in each file:**
 
-1. **`freecad://capabilities` resource** (`src/freecad_mcp/resources/freecad.py`):
-   - Add tool to the appropriate category in `resource_capabilities()`
-   - Include `name`, `description`, and `key_params` for each tool
-   - Add new categories if the tool doesn't fit existing ones
+1. **`freecad://capabilities` resource**
+   (`src/freecad_mcp/resources/parametric.py`):
+   - Keep the tool names derived from `PARAMETRIC_TOOL_NAMES`.
+   - Update prompts, resources, and the native modeling contract when changed.
 
-2. **Prompts** (`src/freecad_mcp/prompts/freecad.py`):
-   - Update relevant guidance sections (partdesign, sketching, validation, etc.)
-   - Add workflow examples if the tool introduces new patterns
-   - Update quick reference tables in `freecad_startup` prompt
+2. **Prompts and guidance**:
+   - Keep construction and review prompts aligned with the canonical guide.
+   - Prefer one shared workflow over category-specific duplicated advice.
 
 3. **Tools documentation** (`docs/guide/tools.md`):
    - Update the tool count in the header
@@ -1810,7 +1815,27 @@ The MCP server provides a `freecad://capabilities` resource that returns a compl
    - Only update if adding a completely new tool category
    - The Tools Reference section serves as quick reference for AI agents
 
-**Note on transaction support**: All tool operations are wrapped in FreeCAD transactions for undo support. Document this in the `transaction_safety` section of capabilities and in relevant prompts.
+**Note on transaction support**: Native variable, sketch, feature, and object
+mutation tools wrap their operations in transactions. Read, persistence,
+screenshot, and export tools have their own documented behavior. Do not claim
+every tool is undoable.
+
+### Default Native Workflow
+
+- **Variables**: `define_variables`, `get_variables`, `bind_expressions`
+- **Sketch**: `create_constrained_sketch`, plus granular repair helpers
+- **Features**: `pad_sketch`, `pocket_sketch`, `revolution_sketch`,
+  `polar_pattern`
+- **Validation**: `query_objects`, `get_sketch_info`, `validate_document`
+
+The default profile also includes connection and console tools, FCStd document
+lifecycle operations, STEP/STL export, and GUI review tools. Arbitrary Python,
+macros, and generic primitive constructors are available only in the full
+profile. See `docs/MCP_TOOLS_REFERENCE.md` for exact signatures.
+
+### Legacy Full Profile Tools
+
+The categories below document the opt-in full profile.
 
 ### Execution & Debugging Tools
 
@@ -1840,6 +1865,7 @@ The MCP server provides a `freecad://capabilities` resource that returns a compl
 | Tool                      | Description                                                     |
 | ------------------------- | --------------------------------------------------------------- |
 | `list_objects`            | List all objects in a document with their types and properties. |
+| `query_objects`           | Filter and return a bounded page of document objects.           |
 | `inspect_object`          | Get detailed information about a specific object.               |
 | `create_object`           | Create a generic FreeCAD object.                                |
 | `create_box`              | Create a Part::Box primitive.                                   |
@@ -1912,23 +1938,24 @@ The MCP server provides a `freecad://capabilities` resource that returns a compl
 
 ### PartDesign Tools (Parametric Modeling)
 
-| Tool                     | Description                                       |
-| ------------------------ | ------------------------------------------------- |
-| `create_partdesign_body` | Create a new PartDesign::Body container.          |
-| `create_sketch`          | Create a sketch attached to a plane or face.      |
-| `pad_sketch`             | Extrude a sketch (additive).                      |
-| `pocket_sketch`          | Cut into solid using a sketch (subtractive).      |
-| `revolution_sketch`      | Revolve a sketch around an axis (additive).       |
-| `groove_sketch`          | Cut by revolving a sketch (subtractive).          |
-| `loft_sketches`          | Create a loft between multiple sketches.          |
-| `sweep_sketch`           | Sweep a sketch along a path.                      |
-| `subtractive_loft`       | Cut material with a loft through sketches.        |
-| `subtractive_pipe`       | Cut material by sweeping a sketch along a path.   |
-| `create_hole`            | Create parametric holes from sketch points.       |
-| `fillet_edges`           | Add fillets (rounded edges).                      |
-| `chamfer_edges`          | Add chamfers (beveled edges).                     |
-| `draft_feature`          | Add draft angle to faces (for mold release).      |
-| `thickness_feature`      | Shell a solid by removing faces and adding walls. |
+| Tool                        | Description                                       |
+| --------------------------- | ------------------------------------------------- |
+| `create_partdesign_body`    | Create a new PartDesign::Body container.          |
+| `create_constrained_sketch` | Create a complete constrained sketch atomically.  |
+| `create_sketch`             | Create a sketch attached to a plane or face.      |
+| `pad_sketch`                | Extrude a sketch (additive).                      |
+| `pocket_sketch`             | Cut into solid using a sketch (subtractive).      |
+| `revolution_sketch`         | Revolve a sketch around an axis (additive).       |
+| `groove_sketch`             | Cut by revolving a sketch (subtractive).          |
+| `loft_sketches`             | Create a loft between multiple sketches.          |
+| `sweep_sketch`              | Sweep a sketch along a path.                      |
+| `subtractive_loft`          | Cut material with a loft through sketches.        |
+| `subtractive_pipe`          | Cut material by sweeping a sketch along a path.   |
+| `create_hole`               | Create parametric holes from sketch points.       |
+| `fillet_edges`              | Add fillets (rounded edges).                      |
+| `chamfer_edges`             | Add chamfers (beveled edges).                     |
+| `draft_feature`             | Add draft angle to faces (for mold release).      |
+| `thickness_feature`         | Shell a solid by removing faces and adding walls. |
 
 ### PartDesign Datum Features
 
@@ -1989,7 +2016,16 @@ The MCP server provides a `freecad://capabilities` resource that returns a compl
 | `get_sketch_info`          | Get detailed info about sketch geometry and constraints. |
 | `toggle_construction`      | Toggle geometry between normal and construction mode.    |
 
-### Spreadsheet Tools (Parametric Design)
+### Native Variable Tools
+
+| Tool               | Description                                                      |
+| ------------------ | ---------------------------------------------------------------- |
+| `define_variables` | Batch-create or update typed properties in an `App::VarSet`.     |
+| `get_variables`    | Inspect variable values, units, property types, and expressions. |
+| `bind_expressions` | Apply related expression bindings in one atomic transaction.     |
+| `set_expression`   | Bind one feature property or sketch dimension for local repair.  |
+
+### Spreadsheet Tools (Full Profile)
 
 | Tool                         | Description                                              |
 | ---------------------------- | -------------------------------------------------------- |

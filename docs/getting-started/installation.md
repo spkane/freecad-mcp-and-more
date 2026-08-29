@@ -6,7 +6,7 @@ This guide covers installing the FreeCAD Robust MCP Server and connecting it to 
 
 ## Requirements
 
-- **FreeCAD** 0.21+ or 1.0+ (with Python 3.11)
+- **FreeCAD** 1.0+ (with Python 3.11)
 - **Python 3.11** (must match FreeCAD's bundled Python version)
 - An **MCP-compatible AI assistant** (Claude Code, Cursor, etc.)
 

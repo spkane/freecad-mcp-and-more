@@ -106,6 +106,27 @@ class TestExecutionTools:
         assert "foo" in result["error_traceback"]
 
     @pytest.mark.asyncio
+    async def test_execute_python_reports_continuing_timeout(
+        self, register_tools, mock_bridge
+    ):
+        """Callers must know when timed-out mutation code is still running."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=False,
+                result=None,
+                stdout="",
+                stderr="Execution timed out",
+                execution_time_ms=1000.0,
+                error_type="TimeoutError",
+                execution_continues=True,
+            )
+        )
+
+        result = await register_tools["execute_python"]("mutate()", timeout_ms=1000)
+
+        assert result["execution_continues"] is True
+
+    @pytest.mark.asyncio
     async def test_execute_python_with_stdout(self, register_tools, mock_bridge):
         """execute_python should capture stdout."""
         mock_bridge.execute_python = AsyncMock(

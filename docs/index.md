@@ -8,10 +8,14 @@ This project provides an [MCP (Model Context Protocol)](https://modelcontextprot
 
 ## Features
 
-- **150+ MCP Tools** - Comprehensive CAD operations including primitives, PartDesign, booleans, export
+- **54 focused MCP tools** - Native PartDesign, Sketcher, variable, expression,
+  validation, persistence, render, and export workflow
+- **Canonical CAD guidance** - Built into server instructions, prompts, and
+  resources for consistent agent behavior
 - **Multiple Connection Modes** - XML-RPC (recommended), JSON-RPC socket, or embedded (Linux only)
 - **GUI & Headless Support** - Full modeling in headless mode, plus screenshots/colors in GUI mode
-- **Macro Development** - Create, edit, run, and template FreeCAD macros via MCP
+- **Opt-in full profile** - Access legacy generic primitives, arbitrary Python,
+  and macro development with `FREECAD_TOOL_PROFILE=full`
 
 ---
 
@@ -53,23 +57,28 @@ The Robust MCP Server works with FreeCAD in both GUI and headless mode:
 | Feature                  | Headless | GUI |
 | ------------------------ | -------- | --- |
 | Object creation          | Yes      | Yes |
-| Boolean operations       | Yes      | Yes |
+| Boolean operations*      | Yes      | Yes |
 | Export (STEP, STL, etc.) | Yes      | Yes |
 | Screenshots              | No       | Yes |
 | Object colors/visibility | No       | Yes |
 | Camera control           | No       | Yes |
 
+\* Boolean operations are available in the opt-in full profile. The default
+parametric profile uses native PartDesign features instead.
+
 ---
 
-## FreeCAD Macros
+## Legacy Full Profile
 
-The MCP server provides tools for working with FreeCAD macros:
+The 158-tool full surface is available with `FREECAD_TOOL_PROFILE=full`. It
+includes the historical interface and tools for working with FreeCAD macros:
 
 - **List macros** - Discover available macros in your FreeCAD installation
 - **Run macros** - Execute macros with parameter passing
 - **Create macros** - Generate new macros from templates or custom code
 
-See [Macros Guide](guide/macros.md) for details on using macros with the MCP server.
+See [Macros Guide](guide/macros.md) for details. New agent workflows should use
+the smaller default parametric profile.
 
 ---
 
@@ -79,7 +88,7 @@ See [Macros Guide](guide/macros.md) for details on using macros with the MCP ser
 | -------------------------------------------------- | ------------------------------------------------- |
 | [Getting Started](getting-started/installation.md) | Installation, configuration, and quick start      |
 | [User Guide](guide/connection-modes.md)            | Connection modes, workbench, macros, and tools    |
-| [Tools Reference](MCP_TOOLS_REFERENCE.md)          | Complete API reference for all 150+ MCP tools     |
+| [Tools Reference](MCP_TOOLS_REFERENCE.md)          | Default 54-tool parametric interface              |
 | [API Reference](api/server.md)                     | Python API documentation                          |
 | [Development](development/contributing.md)         | Contributing, architecture, and development setup |
 | [Comparison](COMPARISON.md)                        | Compare with other FreeCAD MCP implementations    |

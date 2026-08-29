@@ -5,6 +5,16 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from freecad_mcp.bridge.base import ExecutionResult, ObjectInfo
+from freecad_mcp.tools.partdesign import (
+    SketchArc,
+    SketchCircle,
+    SketchConstraint,
+    SketchLine,
+    SketchPoint,
+    SketchRectangle,
+    SketchReference,
+    SketchValidation,
+)
 
 
 class TestPartDesignTools:
@@ -87,6 +97,244 @@ class TestPartDesignTools:
         mock_bridge.execute_python.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_create_sketch_supports_named_datum_plane(
+        self, register_tools, mock_bridge
+    ):
+        """create_sketch should resolve a named datum plane in the document."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={
+                    "name": "GallerySketch",
+                    "label": "GallerySketch",
+                    "type_id": "Sketcher::SketchObject",
+                    "support": "GalleryDatum",
+                },
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        create_sketch = register_tools["create_sketch"]
+        await create_sketch(
+            body_name="Body",
+            plane="GalleryDatum",
+            name="GallerySketch",
+        )
+
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "support_obj = doc.getObject(plane)" in code
+        assert "Unsupported sketch support" in code
+
+    @pytest.mark.asyncio
+    async def test_create_constrained_sketch_is_one_symbolic_transaction(
+        self, register_tools, mock_bridge
+    ):
+        """A complete sketch should map symbolic IDs in one transaction."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={
+                    "document_ref": {"name": "TestDoc", "revision": "rev_2"},
+                    "name": "Profile",
+                    "label": "Profile",
+                    "type_id": "Sketcher::SketchObject",
+                    "entity_indices": {
+                        "base": 0,
+                        "outer": 1,
+                        "arch": 2,
+                        "origin": 3,
+                        "frame": [4, 5, 6, 7],
+                    },
+                    "constraint_indices": {"base_horizontal": 8},
+                    "generated_constraint_indices": {},
+                    "geometry_count": 8,
+                    "constraint_count": 9,
+                    "solver": {
+                        "status": 0,
+                        "fully_constrained": False,
+                        "degrees_of_freedom": None,
+                    },
+                    "closed_profiles": 2,
+                    "warnings": ["Sketch is not fully constrained"],
+                },
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        create_constrained_sketch = register_tools["create_constrained_sketch"]
+        result = await create_constrained_sketch(
+            body_name="Body",
+            sketch_name="Profile",
+            support="XY_Plane",
+            entities=[
+                SketchLine(id="base", start=(0, 0), end=(20, 0)),
+                SketchCircle(id="outer", center=(0, 0), radius=10),
+                SketchArc(
+                    id="arch",
+                    center=(0, 0),
+                    radius=5,
+                    start_angle=0,
+                    end_angle=180,
+                ),
+                SketchPoint(id="origin", position=(0, 0)),
+                SketchRectangle(id="frame", origin=(-10, -5), width=20, height=10),
+            ],
+            constraints=[
+                SketchConstraint(
+                    id="base_horizontal",
+                    kind="horizontal",
+                    first=SketchReference(entity="base"),
+                )
+            ],
+            validation=SketchValidation(
+                require_fully_constrained=False,
+                require_closed_profiles=True,
+            ),
+            expected_revision="rev_1",
+            doc_name="TestDoc",
+        )
+
+        assert result["entity_indices"]["base"] == 0
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert (
+            code.count('open_owned_transaction(doc, "Create Constrained Sketch")') == 1
+        )
+        assert 'kind == "line"' in code
+        assert 'kind == "circle"' in code
+        assert 'kind == "arc"' in code
+        assert 'kind == "point"' in code
+        assert 'kind == "rectangle"' in code
+        assert "entity_lookup" in code
+        assert "sketch.addConstraint(constraint)" in code
+        assert "sketch.setExpression" in code
+        assert "require_fully_constrained" in code
+        assert "require_closed_profiles" in code
+        assert "STALE_REVISION" in code
+        assert "candidate.Content" in code
+        assert "getLastDoF()" in code
+        assert "solver_status = int(sketch.solve())" in code
+        assert "if reject_solver_errors and solver_status != 0:" in code
+        assert "degrees_of_freedom = int(sketch.solve())" not in code
+        assert "abort_owned_transaction(doc)" in code
+        assert code.index('"solver": {') < code.index("doc.commitTransaction()")
+        compile(code, "<create_constrained_sketch>", "exec")
+
+    @pytest.mark.asyncio
+    async def test_create_constrained_sketch_rejects_duplicate_symbolic_ids(
+        self, register_tools, mock_bridge
+    ):
+        """Symbolic IDs must resolve to one deterministic native entity."""
+        create_constrained_sketch = register_tools["create_constrained_sketch"]
+
+        with pytest.raises(ValueError, match="Duplicate sketch entity IDs"):
+            await create_constrained_sketch(
+                body_name="Body",
+                sketch_name="Profile",
+                entities=[
+                    SketchLine(id="edge", start=(0, 0), end=(10, 0)),
+                    SketchLine(id="edge", start=(10, 0), end=(10, 10)),
+                ],
+            )
+
+        mock_bridge.execute_python.assert_not_called()
+
+    def test_sketch_constraint_requires_dimensional_value(self):
+        """Dimensional constraints should have one literal or expression."""
+        with pytest.raises(ValueError, match="exactly one of value or expression"):
+            SketchConstraint(
+                id="length",
+                kind="distance",
+                first=SketchReference(entity="edge"),
+            )
+
+    @pytest.mark.parametrize(
+        "constraint",
+        [
+            SketchConstraint(
+                id="horizontal",
+                kind="horizontal",
+                first=SketchReference(entity="edge"),
+            ).model_dump()
+            | {"first": {"entity": "edge", "point": "start"}},
+            {
+                "id": "coincident",
+                "kind": "coincident",
+                "first": {"entity": "a", "point": "whole"},
+                "second": {"entity": "b", "point": "end"},
+            },
+            {
+                "id": "angle",
+                "kind": "angle",
+                "first": {"entity": "a", "point": "start"},
+                "second": {"entity": "b", "point": "whole"},
+                "value": 45,
+            },
+        ],
+    )
+    def test_sketch_constraint_rejects_ignored_point_roles(self, constraint):
+        """Typed constraints must not silently discard reference point roles."""
+        with pytest.raises(ValueError, match="reference"):
+            SketchConstraint.model_validate(constraint)
+
+    def test_sketch_constraint_accepts_native_point_curve_overloads(self):
+        """Perpendicular, tangent, and distance should retain point references."""
+        tangent = SketchConstraint(
+            id="tangent",
+            kind="tangent",
+            first=SketchReference(entity="arc", point="end"),
+            second=SketchReference(entity="line"),
+        )
+        point_to_line = SketchConstraint(
+            id="offset",
+            kind="distance",
+            first=SketchReference(entity="line", point="start"),
+            second=SketchReference(entity="datum"),
+            value=5,
+        )
+
+        assert tangent.first.point == "end"
+        assert point_to_line.second is not None
+        assert point_to_line.second.point == "whole"
+
+    def test_sketch_constraint_rejects_single_point_distance(self):
+        """Generic Distance has no native point-to-origin overload."""
+        with pytest.raises(ValueError, match="whole geometry"):
+            SketchConstraint(
+                id="distance",
+                kind="distance",
+                first=SketchReference(entity="line", point="start"),
+                value=5,
+            )
+
+    @pytest.mark.asyncio
+    async def test_create_constrained_sketch_validates_entity_point_roles(
+        self, register_tools, mock_bridge
+    ):
+        """A circle endpoint reference should fail before reaching FreeCAD."""
+        create_constrained_sketch = register_tools["create_constrained_sketch"]
+
+        with pytest.raises(ValueError, match="does not support point role start"):
+            await create_constrained_sketch(
+                body_name="Body",
+                sketch_name="Profile",
+                entities=[SketchCircle(id="circle", center=(0, 0), radius=10)],
+                constraints=[
+                    SketchConstraint(
+                        id="distance",
+                        kind="distance_x",
+                        first=SketchReference(entity="circle", point="start"),
+                        value=10,
+                    )
+                ],
+            )
+
+        mock_bridge.execute_python.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_add_sketch_rectangle(self, register_tools, mock_bridge):
         """add_sketch_rectangle should add a rectangle via execute_python."""
         mock_bridge.execute_python = AsyncMock(
@@ -107,6 +355,9 @@ class TestPartDesignTools:
         assert result["constraint_count"] == 8
         assert result["geometry_count"] == 4
         mock_bridge.execute_python.assert_called_once()
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert '"geometry_indices": list(range(n, n + 4))' in code
+        assert '"constraint_indices": list(' in code
 
     @pytest.mark.asyncio
     async def test_add_sketch_circle(self, register_tools, mock_bridge):
@@ -211,7 +462,18 @@ class TestPartDesignTools:
 
         assert result["name"] == "Pad"
         assert result["type_id"] == "PartDesign::Pad"
-        mock_bridge.execute_python.assert_called_once()
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "Feature validation failed" in code
+        assert "len(body_shape.Solids) != 1" in code
+        assert '"Touched" in feature_state' in code
+        assert '"Touched" in body_state' in code
+        assert '"document_ref"' in code
+        assert '"next_inputs"' in code
+        assert 'open_owned_transaction(doc, "Pad Sketch")' in code
+        assert "abort_owned_transaction(doc)" in code
+        assert code.index('"next_inputs"') < code.index("doc.commitTransaction()")
+        assert code.count("doc.recompute()") == 2
+        compile(code, "<pad_sketch>", "exec")
 
     @pytest.mark.asyncio
     async def test_pocket_sketch(self, register_tools, mock_bridge):
@@ -304,6 +566,14 @@ class TestPartDesignTools:
 
         assert result["name"] == "Fillet"
         mock_bridge.execute_python.assert_called_once()
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "fillet.UseAllEdges = True" in code
+        assert (
+            "obj.Shape.Edges"
+            not in code.split("# PartDesign Fillet", 1)[1].split("# Part Fillet", 1)[0]
+        )
+        assert "fillet.Base = obj" in code
+        assert "fillet.Edges = edge_list" in code
 
     @pytest.mark.asyncio
     async def test_chamfer_edges(self, register_tools, mock_bridge):
@@ -327,6 +597,16 @@ class TestPartDesignTools:
 
         assert result["name"] == "Chamfer"
         mock_bridge.execute_python.assert_called_once()
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "chamfer.UseAllEdges = True" in code
+        assert (
+            "obj.Shape.Edges"
+            not in code.split("# PartDesign Chamfer", 1)[1].split("# Part Chamfer", 1)[
+                0
+            ]
+        )
+        assert "chamfer.Base = obj" in code
+        assert "chamfer.Edges = edge_list" in code
 
     @pytest.mark.asyncio
     async def test_create_hole(self, register_tools, mock_bridge):
@@ -419,6 +699,51 @@ class TestPartDesignTools:
         mock_bridge.execute_python.assert_called_once()
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("tool_name", "arguments"),
+        [
+            ("pad_sketch", {"sketch_name": "Sketch", "length": 10}),
+            ("pocket_sketch", {"sketch_name": "Sketch", "length": 5}),
+            ("fillet_edges", {"object_name": "Pad", "radius": 2}),
+            ("chamfer_edges", {"object_name": "Pad", "size": 1}),
+            ("revolution_sketch", {"sketch_name": "Sketch"}),
+            ("groove_sketch", {"sketch_name": "Sketch"}),
+            ("create_hole", {"sketch_name": "HoleSketch"}),
+            ("linear_pattern", {"feature_name": "Pad"}),
+            ("polar_pattern", {"feature_name": "Pad"}),
+            ("mirrored_feature", {"feature_name": "Pad"}),
+            ("loft_sketches", {"sketch_names": ["Sketch", "Sketch001"]}),
+        ],
+    )
+    async def test_focused_feature_mutations_return_validated_result_contract(
+        self, register_tools, mock_bridge, tool_name, arguments
+    ):
+        """Focused feature mutations should reject invalid local geometry."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={"name": "Feature", "validation": {"valid": True}},
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        await register_tools[tool_name](**arguments)
+
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "Feature validation failed" in code
+        assert "PartDesign Body must contain exactly one solid" in code
+        assert '"document_ref"' in code
+        assert '"next_inputs"' in code
+        assert "require_expected_revision(doc, expected_revision)" in code
+        assert "open_owned_transaction(doc," in code
+        assert "abort_owned_transaction(doc)" in code
+        assert "candidate.Content" in code
+        assert code.index('"next_inputs"') < code.index("doc.commitTransaction()")
+        compile(code, f"<{tool_name}>", "exec")
+
+    @pytest.mark.asyncio
     async def test_loft_sketches(self, register_tools, mock_bridge):
         """loft_sketches should create a loft via execute_python."""
         mock_bridge.execute_python = AsyncMock(
@@ -491,6 +816,47 @@ class TestPartDesignTools:
         assert result["name"] == "DatumPlane"
         assert result["type_id"] == "PartDesign::Plane"
         mock_bridge.execute_python.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_create_datum_plane_binds_offset_expression(
+        self, register_tools, mock_bridge
+    ):
+        """Datum creation should bind the native attachment offset directly."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={
+                    "name": "GalleryDatum",
+                    "label": "GalleryDatum",
+                    "type_id": "PartDesign::Plane",
+                    "offset_expression": "Variables.tower_height",
+                },
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        create_datum_plane = register_tools["create_datum_plane"]
+        result = await create_datum_plane(
+            body_name="Body",
+            name="GalleryDatum",
+            offset_expression="Variables.tower_height",
+        )
+
+        assert result["offset_expression"] == "Variables.tower_height"
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert (
+            'datum.setExpression("AttachmentOffset.Base.z", offset_expression)' in code
+        )
+        assert "STALE_REVISION" in code
+        assert "candidate.Content" in code
+        assert '"operation_id"' in code
+        assert '"document_ref"' in code
+        assert "for candidate in (datum, body)" in code
+        assert 'open_owned_transaction(doc, "Create Datum Plane")' in code
+        assert code.index('"operation_id"') < code.index("doc.commitTransaction()")
+        compile(code, "<create_datum_plane>", "exec")
 
     @pytest.mark.asyncio
     async def test_create_datum_line(self, register_tools, mock_bridge):
@@ -767,6 +1133,134 @@ class TestPartDesignTools:
         mock_bridge.execute_python.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_add_sketch_constraint_converts_angles_and_supports_point_on_object(
+        self, register_tools, mock_bridge
+    ):
+        """The general repair tool should use native units and overloads."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={"constraint_index": 0, "constraint_count": 1},
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+        add_constraint = register_tools["add_sketch_constraint"]
+
+        await add_constraint(
+            sketch_name="Sketch",
+            constraint_type="PointOnObject",
+            geometry1=0,
+            point1=1,
+            geometry2=1,
+        )
+
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert 'Sketcher.Constraint("PointOnObject", g1, p1, g2)' in code
+        assert "math.radians(value)" in code
+        assert 'open_owned_transaction(doc, "Add Sketch Constraint")' in code
+        compile(code, "<add_sketch_constraint>", "exec")
+
+    @pytest.mark.asyncio
+    async def test_add_sketch_constraint_supports_point_curve_overloads(
+        self, register_tools, mock_bridge
+    ):
+        """Granular repair should preserve native point-to-curve signatures."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={"constraint_index": 0, "constraint_count": 1},
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+        add_constraint = register_tools["add_sketch_constraint"]
+
+        await add_constraint(
+            sketch_name="Sketch",
+            constraint_type="Distance",
+            geometry1=0,
+            point1=1,
+            geometry2=1,
+            value=5,
+        )
+        await add_constraint(
+            sketch_name="Sketch",
+            constraint_type="Tangent",
+            geometry1=0,
+            point1=2,
+            geometry2=1,
+        )
+
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "Sketcher.Constraint(ctype, g1, p1, g2, value)" in code
+        assert "Sketcher.Constraint(ctype, g1, p1, g2)" in code
+
+    @pytest.mark.asyncio
+    async def test_add_sketch_constraint_rejects_single_point_distance(
+        self, register_tools, mock_bridge
+    ):
+        """Generic Distance cannot use the DistanceX/Y point-origin signature."""
+        add_constraint = register_tools["add_sketch_constraint"]
+
+        with pytest.raises(ValueError, match="point-to-origin"):
+            await add_constraint(
+                sketch_name="Sketch",
+                constraint_type="Distance",
+                geometry1=0,
+                point1=1,
+                value=5,
+            )
+
+        mock_bridge.execute_python.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_add_sketch_constraint_rejects_point_block(
+        self, register_tools, mock_bridge
+    ):
+        """FreeCAD Block accepts a whole geometry, not a point position."""
+        add_constraint = register_tools["add_sketch_constraint"]
+
+        with pytest.raises(ValueError, match="whole geometry"):
+            await add_constraint(
+                sketch_name="Sketch",
+                constraint_type="Block",
+                geometry1=0,
+                point1=1,
+            )
+
+        mock_bridge.execute_python.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_add_symmetric_sketch_constraint(self, register_tools, mock_bridge):
+        """Symmetric constraints should accept a separate symmetry line."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={"constraint_index": 0, "constraint_count": 1},
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        add_constraint = register_tools["add_sketch_constraint"]
+        await add_constraint(
+            sketch_name="Sketch",
+            constraint_type="Symmetric",
+            geometry1=0,
+            point1=1,
+            geometry2=1,
+            point2=1,
+            geometry3=2,
+        )
+
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "Sketcher.Constraint(ctype, g1, p1, g2, p2, g3)" in code
+
+    @pytest.mark.asyncio
     async def test_constrain_horizontal(self, register_tools, mock_bridge):
         """constrain_horizontal should add a horizontal constraint."""
         mock_bridge.execute_python = AsyncMock(
@@ -1018,6 +1512,10 @@ class TestPartDesignTools:
 
         assert result["constraint_index"] == 0
         mock_bridge.execute_python.assert_called_once()
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert 'Sketcher.Constraint(\n                "DistanceX"' in code
+        assert 'Sketcher.Constraint(\n                "DistanceY"' in code
+        assert 'Sketcher.Constraint("Block", 0, 1)' not in code
 
     # Tests for Sketcher operations
 
@@ -1090,7 +1588,7 @@ class TestPartDesignTools:
                     "name": "Sketch",
                     "geometry_count": 4,
                     "constraint_count": 8,
-                    "is_fully_constrained": True,
+                    "fully_constrained": True,
                     "degrees_of_freedom": 0,
                 },
                 stdout="",
@@ -1104,8 +1602,16 @@ class TestPartDesignTools:
 
         assert result["geometry_count"] == 4
         assert result["constraint_count"] == 8
-        assert result["is_fully_constrained"] is True
+        assert result["fully_constrained"] is True
         mock_bridge.execute_python.assert_called_once()
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert '"geometry": geometry' in code
+        assert '"constraints": constraints' in code
+        assert '"expressions": expressions' in code
+        assert "except Exception as driving_error:" in code
+        assert 'details["driving"] = None' in code
+        assert 'details["driving_error"] = str(driving_error)' in code
+        assert "sketch.getLastDoF()" in code
 
     @pytest.mark.asyncio
     async def test_toggle_construction(self, register_tools, mock_bridge):

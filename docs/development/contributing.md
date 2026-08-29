@@ -10,7 +10,7 @@ Thank you for your interest in contributing to FreeCAD Robust MCP Server!
 
 - Python 3.11 (must match FreeCAD's bundled version)
 - [mise](https://mise.jdx.dev/) for tool management
-- FreeCAD 0.21+ or 1.0+ installed
+- FreeCAD 1.0+ installed
 
 ### Initial Setup
 

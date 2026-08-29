@@ -181,8 +181,8 @@ class TestLifespan:
             mock_socket_bridge.disconnect.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_version_fetch_failure_logs_warning(self):
-        """Should log warning if version fetch fails."""
+    async def test_version_fetch_failure_stops_startup(self):
+        """Startup should fail when the minimum version cannot be verified."""
         import freecad_mcp.server as server_module
 
         mock_config = MagicMock()
@@ -200,14 +200,41 @@ class TestLifespan:
                 "freecad_mcp.bridge.embedded.EmbeddedBridge",
                 return_value=mock_bridge,
             ),
-            patch.object(server_module.logger, "warning") as mock_warning,
         ):
             mock_server = MagicMock()
 
-            async with server_module.lifespan(mock_server):
-                # Warning should be logged
-                mock_warning.assert_called_once()
-                assert "Could not get FreeCAD version" in str(mock_warning.call_args)
+            with pytest.raises(RuntimeError, match="Could not verify"):
+                async with server_module.lifespan(mock_server):
+                    pass
+
+            mock_bridge.disconnect.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_freecad_before_version_one_is_rejected(self):
+        """The native VarSet interface should require FreeCAD 1.0 or newer."""
+        import freecad_mcp.server as server_module
+
+        mock_config = MagicMock()
+        mock_config.mode = FreecadMode.EMBEDDED
+        mock_config.freecad_path = None
+
+        mock_bridge = AsyncMock()
+        mock_bridge.get_freecad_version = AsyncMock(
+            return_value={"version": "0.21.2", "gui_available": False}
+        )
+
+        with (
+            patch.object(server_module, "get_config", return_value=mock_config),
+            patch(
+                "freecad_mcp.bridge.embedded.EmbeddedBridge",
+                return_value=mock_bridge,
+            ),
+        ):
+            with pytest.raises(RuntimeError, match=r"FreeCAD 1\.0 or newer"):
+                async with server_module.lifespan(MagicMock()):
+                    pass
+
+            mock_bridge.disconnect.assert_called_once()
 
 
 class TestRegisterAllComponents:
@@ -221,6 +248,34 @@ class TestRegisterAllComponents:
         # that the mcp instance exists and has tools registered
         assert mcp is not None
         assert mcp.name == "freecad-mcp"
+
+
+class TestCheckFreecadConnection:
+    """Tests for the command-line connection check."""
+
+    @pytest.mark.asyncio
+    async def test_rejects_unsupported_version_and_disconnects(self):
+        """The CLI check should enforce the same version gate as startup."""
+        import freecad_mcp.server as server_module
+
+        mock_config = MagicMock()
+        mock_config.mode = FreecadMode.XMLRPC
+        mock_config.socket_host = "localhost"
+        mock_config.xmlrpc_port = 9875
+
+        mock_bridge = AsyncMock()
+        mock_bridge.get_freecad_version = AsyncMock(
+            return_value={"version": "0.21.2", "gui_available": False}
+        )
+
+        with (
+            patch.object(server_module, "get_config", return_value=mock_config),
+            patch("freecad_mcp.bridge.xmlrpc.XmlRpcBridge", return_value=mock_bridge),
+        ):
+            connected = await server_module.check_freecad_connection()
+
+        assert connected is False
+        mock_bridge.disconnect.assert_awaited_once()
 
 
 class TestMain:

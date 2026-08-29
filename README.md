@@ -25,7 +25,7 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
     - [Quick Links](#quick-links)
   - [Robust MCP Server](#robust-mcp-server)
     - [Installation](#installation)
-      - [Using pip (recommended)](#using-pip-recommended)
+      - [Using pip](#using-pip)
       - [Using mise and just (from source)](#using-mise-and-just-from-source)
       - [Using Docker](#using-docker)
     - [Configuration](#configuration)
@@ -44,18 +44,7 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
         - [Socket Mode (JSON-RPC)](#socket-mode-json-rpc)
         - [Headless Mode](#headless-mode)
         - [Embedded Mode (Linux Only)](#embedded-mode-linux-only)
-    - [Available Tools](#available-tools)
-      - [Execution & Debugging (5 tools)](#execution--debugging-5-tools)
-      - [Document Management (7 tools)](#document-management-7-tools)
-      - [Object Creation - Primitives (8 tools)](#object-creation---primitives-8-tools)
-      - [Object Management (12 tools)](#object-management-12-tools)
-      - [PartDesign - Sketching (14 tools)](#partdesign---sketching-14-tools)
-      - [PartDesign - Patterns & Edges (5 tools)](#partdesign---patterns--edges-5-tools)
-      - [View & Display (11 tools)](#view--display-11-tools)
-      - [Undo/Redo (3 tools)](#undoredo-3-tools)
-      - [Export/Import (7 tools)](#exportimport-7-tools)
-      - [Macro Management (6 tools)](#macro-management-6-tools)
-      - [Parts Library (2 tools)](#parts-library-2-tools)
+    - [Parametric Tool Profile](#parametric-tool-profile)
   - [For Developers](#for-developers)
   - [Robust MCP Server Development](#robust-mcp-server-development)
     - [Prerequisites](#prerequisites)
@@ -83,14 +72,20 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 
 ## Features
 
-- **150+ MCP Tools**: Comprehensive CAD operations including primitives, PartDesign, booleans, export
+- **54 focused MCP tools**: Native Body, sketch, constraint, feature, variable,
+  validation, persistence, rendering, and export operations
+- **Built-in CAD guidance**: Prompts and resources encode planning, PartDesign,
+  validation, parameter-variant, reopen, export, and visual-review practices
+- **Task-oriented PartDesign workflow**: Build complete constrained sketches,
+  expression batches, and validated features through typed MCP commands
 - **Multiple Connection Modes**: XML-RPC (recommended), JSON-RPC socket, or embedded
 - **GUI & Headless Support**: Full modeling in headless mode, plus screenshots/colors in GUI mode
-- **Macro Development**: Create, edit, run, and template FreeCAD macros via MCP
+- **Opt-in full profile**: Access legacy generic primitives, arbitrary Python,
+  and macro development with `FREECAD_TOOL_PROFILE=full`
 
 ## Installation Requirements / Dependencies
 
-- [FreeCAD](https://www.freecadweb.org/) 0.21+ or 1.0+
+- [FreeCAD](https://www.freecadweb.org/) 1.0+
 - Python 3.11 (required for FreeCAD ABI compatibility)
 
 ---
@@ -169,6 +164,7 @@ just docker::build-multi  # Build multi-arch (amd64 + arm64)
 | `FREECAD_SOCKET_PORT` | JSON-RPC socket server port                          | `9876`      |
 | `FREECAD_XMLRPC_PORT` | XML-RPC server port                                  | `9875`      |
 | `FREECAD_TIMEOUT_MS`  | Execution timeout in ms                              | `30000`     |
+| `FREECAD_TOOL_PROFILE`| Tool interface: `parametric` or legacy `full`        | `parametric`|
 
 #### Connection Modes
 
@@ -190,7 +186,8 @@ Add something like the following to your MCP client settings. For Claude Code, t
     "freecad": {
       "command": "freecad-mcp",
       "env": {
-        "FREECAD_MODE": "xmlrpc"
+        "FREECAD_MODE": "xmlrpc",
+        "FREECAD_TOOL_PROFILE": "parametric"
       }
     }
   }
@@ -206,7 +203,8 @@ If installed from source with mise/uv:
       "command": "/path/to/mise/shims/uv",
       "args": ["run", "--project", "/path/to/freecad-addon-robust-mcp-server", "freecad-mcp"],
       "env": {
-        "FREECAD_MODE": "xmlrpc"
+        "FREECAD_MODE": "xmlrpc",
+        "FREECAD_TOOL_PROFILE": "parametric"
       }
     }
   }
@@ -348,145 +346,33 @@ Runs FreeCAD in-process. **Only works on Linux** - crashes on macOS/Windows.
 FREECAD_MODE=embedded freecad-mcp
 ```
 
-### Available Tools
+### Parametric Tool Profile
 
-The Robust MCP Server provides **150+ tools** organized into categories. Tools marked with **GUI** require FreeCAD to be running in GUI mode; they will return an error in headless mode.
+The default profile exposes 54 tools. It keeps the native PartDesign path while
+removing unrelated primitives, arbitrary Python execution, macros, Draft tools,
+and less common operations from the model's tool context.
 
-#### Execution & Debugging (5 tools)
+- **Document**: `create_document`, `save_document`, `open_document`
+- **Variables**: `define_variables`, `get_variables`, `bind_expressions`
+- **Sketch**: `create_constrained_sketch`, plus granular repair helpers
+- **Features**: `pad_sketch`, `pocket_sketch`, `revolution_sketch`,
+  `polar_pattern`
+- **Inspect**: `query_objects`, `get_sketch_info`, `validate_document`
+- **Deliver**: `get_screenshot`, `export_step`, `export_stl`
 
-| Tool                         | Description                                                   | Mode |
-| ---------------------------- | ------------------------------------------------------------- | ---- |
-| `execute_python`             | Execute arbitrary Python code in FreeCAD's context            | All  |
-| `get_freecad_version`        | Get FreeCAD version, build date, and Python version           | All  |
-| `get_connection_status`      | Check MCP bridge connection status and latency                | All  |
-| `get_console_output`         | Get recent FreeCAD console output (up to N lines)             | All  |
-| `get_mcp_server_environment` | Get Robust MCP Server environment (OS, hostname, instance_id) | All  |
+The primary workflow creates a native `PartDesign::Body`, fully constrained
+sketches, native variable-driven expressions, and ordered additive or subtractive
+features through MCP commands. Read `freecad://parametric-parts/guide` or invoke
+`design_parametric_part` for the complete workflow.
 
-#### Document Management (7 tools)
+The 158-tool full profile retains the historical interface for existing clients:
 
-| Tool                  | Description                               | Mode |
-| --------------------- | ----------------------------------------- | ---- |
-| `list_documents`      | List all open documents with metadata     | All  |
-| `get_active_document` | Get information about the active document | All  |
-| `create_document`     | Create a new FreeCAD document             | All  |
-| `open_document`       | Open an existing .FCStd file              | All  |
-| `save_document`       | Save a document to disk                   | All  |
-| `close_document`      | Close a document (with optional save)     | All  |
-| `recompute_document`  | Force recomputation of all objects        | All  |
+```bash
+FREECAD_TOOL_PROFILE=full freecad-mcp
+```
 
-#### Object Creation - Primitives (8 tools)
-
-| Tool              | Description                                        | Mode |
-| ----------------- | -------------------------------------------------- | ---- |
-| `create_object`   | Create a generic FreeCAD object by type ID         | All  |
-| `create_box`      | Create a Part::Box with length, width, height      | All  |
-| `create_cylinder` | Create a Part::Cylinder with radius, height, angle | All  |
-| `create_sphere`   | Create a Part::Sphere with radius                  | All  |
-| `create_cone`     | Create a Part::Cone with two radii and height      | All  |
-| `create_torus`    | Create a Part::Torus (donut) with radii and angles | All  |
-| `create_wedge`    | Create a Part::Wedge (tapered box)                 | All  |
-| `create_helix`    | Create a Part::Helix curve for sweeps and threads  | All  |
-
-#### Object Management (12 tools)
-
-| Tool                | Description                                        | Mode |
-| ------------------- | -------------------------------------------------- | ---- |
-| `list_objects`      | List all objects in a document                     | All  |
-| `inspect_object`    | Get detailed object info (properties, shape, etc.) | All  |
-| `edit_object`       | Modify properties of an existing object            | All  |
-| `delete_object`     | Delete an object from a document                   | All  |
-| `set_placement`     | Set object position and rotation                   | All  |
-| `scale_object`      | Scale an object uniformly or non-uniformly         | All  |
-| `rotate_object`     | Rotate an object around an axis                    | All  |
-| `copy_object`       | Create a copy of an object                         | All  |
-| `mirror_object`     | Mirror an object across a plane (XY, XZ, YZ)       | All  |
-| `boolean_operation` | Fuse, cut, or intersect objects                    | All  |
-| `get_selection`     | Get currently selected objects                     | GUI  |
-| `set_selection`     | Select specific objects by name                    | GUI  |
-| `clear_selection`   | Clear all selections                               | GUI  |
-
-#### PartDesign - Sketching (14 tools)
-
-| Tool                     | Description                                     | Mode |
-| ------------------------ | ----------------------------------------------- | ---- |
-| `create_partdesign_body` | Create a PartDesign::Body container             | All  |
-| `create_sketch`          | Create a sketch on a plane or face              | All  |
-| `add_sketch_rectangle`   | Add a rectangle to a sketch                     | All  |
-| `add_sketch_circle`      | Add a circle to a sketch                        | All  |
-| `add_sketch_line`        | Add a line (with optional construction flag)    | All  |
-| `add_sketch_arc`         | Add an arc by center, radius, and angles        | All  |
-| `add_sketch_point`       | Add a point (useful for hole centers)           | All  |
-| `pad_sketch`             | Extrude a sketch (additive)                     | All  |
-| `pocket_sketch`          | Cut into solid using a sketch (subtractive)     | All  |
-| `revolution_sketch`      | Revolve a sketch around an axis (additive)      | All  |
-| `groove_sketch`          | Revolve a sketch around an axis (subtractive)   | All  |
-| `create_hole`            | Create parametric holes with optional threading | All  |
-| `loft_sketches`          | Create a loft through multiple sketches         | All  |
-| `sweep_sketch`           | Sweep a profile along a spine path              | All  |
-
-#### PartDesign - Patterns & Edges (5 tools)
-
-| Tool               | Description                                | Mode |
-| ------------------ | ------------------------------------------ | ---- |
-| `linear_pattern`   | Create linear pattern of a feature         | All  |
-| `polar_pattern`    | Create polar/circular pattern of a feature | All  |
-| `mirrored_feature` | Mirror a feature across a plane            | All  |
-| `fillet_edges`     | Add fillets (rounded edges)                | All  |
-| `chamfer_edges`    | Add chamfers (beveled edges)               | All  |
-
-#### View & Display (11 tools)
-
-| Tool                    | Description                                     | Mode |
-| ----------------------- | ----------------------------------------------- | ---- |
-| `get_screenshot`        | Capture a screenshot of the 3D view             | GUI  |
-| `set_view_angle`        | Set camera to standard views (Front, Top, etc.) | GUI  |
-| `fit_all`               | Zoom to fit all objects in view                 | GUI  |
-| `zoom_in`               | Zoom in by a factor                             | GUI  |
-| `zoom_out`              | Zoom out by a factor                            | GUI  |
-| `set_camera_position`   | Set camera position and look-at point           | GUI  |
-| `set_object_visibility` | Show/hide objects                               | GUI  |
-| `set_display_mode`      | Set display mode (Shaded, Wireframe, etc.)      | GUI  |
-| `set_object_color`      | Set object color as RGB values                  | GUI  |
-| `list_workbenches`      | List available FreeCAD workbenches              | All  |
-| `activate_workbench`    | Switch to a different workbench                 | All  |
-
-#### Undo/Redo (3 tools)
-
-| Tool                   | Description                        | Mode |
-| ---------------------- | ---------------------------------- | ---- |
-| `undo`                 | Undo the last operation            | All  |
-| `redo`                 | Redo a previously undone operation | All  |
-| `get_undo_redo_status` | Get available undo/redo operations | All  |
-
-#### Export/Import (7 tools)
-
-| Tool          | Description                                | Mode |
-| ------------- | ------------------------------------------ | ---- |
-| `export_step` | Export to STEP format (ISO CAD exchange)   | All  |
-| `export_stl`  | Export to STL format (3D printing)         | All  |
-| `export_3mf`  | Export to 3MF format (modern 3D printing)  | All  |
-| `export_obj`  | Export to OBJ format (Wavefront)           | All  |
-| `export_iges` | Export to IGES format (older CAD exchange) | All  |
-| `import_step` | Import a STEP file                         | All  |
-| `import_stl`  | Import an STL file as mesh                 | All  |
-
-#### Macro Management (6 tools)
-
-| Tool                         | Description                                    | Mode |
-| ---------------------------- | ---------------------------------------------- | ---- |
-| `list_macros`                | List all available FreeCAD macros              | All  |
-| `run_macro`                  | Execute a macro by name                        | All  |
-| `create_macro`               | Create a new macro file                        | All  |
-| `read_macro`                 | Read macro source code                         | All  |
-| `delete_macro`               | Delete a user macro                            | All  |
-| `create_macro_from_template` | Create macro from template (basic, part, etc.) | All  |
-
-#### Parts Library (2 tools)
-
-| Tool                       | Description                           | Mode |
-| -------------------------- | ------------------------------------- | ---- |
-| `list_parts_library`       | List parts in FreeCAD's parts library | All  |
-| `insert_part_from_library` | Insert a part from the library        | All  |
+The full profile is not recommended for compact local models because every tool
+schema consumes context and creates additional tool-selection ambiguity.
 
 ---
 
@@ -499,7 +385,7 @@ This section covers development setup, contributing, and working with the codeba
 ### Prerequisites
 
 - [mise](https://mise.jdx.dev/) - Tool version manager
-- [FreeCAD](https://www.freecadweb.org/) 0.21+ or 1.0+
+- [FreeCAD](https://www.freecadweb.org/) 1.0+
 
 ### Initial Setup
 

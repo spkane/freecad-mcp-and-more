@@ -41,6 +41,37 @@ _activeServers: weakref.WeakSet[FreecadMCPPlugin] = weakref.WeakSet()
 _atexitRegistered = False
 
 
+def _xmlrpc_safe_text(value: str) -> str:
+    """Replace characters that XML 1.0 cannot represent."""
+    return "".join(
+        character
+        if (
+            ord(character) in {0x09, 0x0A, 0x0D}
+            or 0x20 <= ord(character) <= 0xD7FF
+            or 0xE000 <= ord(character) <= 0xFFFD
+            or 0x10000 <= ord(character) <= 0x10FFFF
+        )
+        else "\N{REPLACEMENT CHARACTER}"
+        for character in value
+    )
+
+
+def _xmlrpc_safe_value(value: Any) -> Any:
+    """Recursively normalize a value for Python's XML-RPC marshaller."""
+    if isinstance(value, str):
+        return _xmlrpc_safe_text(value)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value if -(2**31) <= value < 2**31 else str(value)
+    if isinstance(value, dict):
+        return {
+            _xmlrpc_safe_text(str(key)): _xmlrpc_safe_value(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list | tuple | set):
+        return [_xmlrpc_safe_value(item) for item in value]
+    return value
+
+
 def _get_shiboken_delete() -> Any:
     """Get the shiboken delete function for explicit Qt object destruction.
 
@@ -168,6 +199,25 @@ class ExecutionRequest:
         self.request_id = request_id
         self.result: dict[str, Any] | None = None
         self.completed = threading.Event()
+        self._state_lock = threading.Lock()
+        self._started = False
+        self._cancelled = False
+
+    def start_if_pending(self) -> bool:
+        """Mark this request started unless its caller already timed out."""
+        with self._state_lock:
+            if self._cancelled:
+                return False
+            self._started = True
+            return True
+
+    def cancel_if_pending(self) -> bool:
+        """Cancel a queued request, returning False if execution has started."""
+        with self._state_lock:
+            if self._started:
+                return False
+            self._cancelled = True
+            return True
 
 
 class FreecadMCPPlugin:
@@ -218,6 +268,8 @@ class FreecadMCPPlugin:
 
         # Queue-based execution for thread safety (learned from neka-nat)
         self._request_queue: queue.Queue[ExecutionRequest] = queue.Queue()
+        self._active_request_lock = threading.Lock()
+        self._active_request: ExecutionRequest | None = None
         self._timer = None
         self._queue_thread: threading.Thread | None = None
         self._headless = False
@@ -298,6 +350,7 @@ class FreecadMCPPlugin:
                 - request_count: Total requests processed
                 - last_request_time: Timestamp of last request (or None)
                 - headless: Whether running in headless mode
+                - execution_in_progress: Whether code is currently running
         """
         return {
             "running": self._running,
@@ -308,6 +361,7 @@ class FreecadMCPPlugin:
             "request_count": self._request_count,
             "last_request_time": self._last_request_time,
             "headless": self._headless,
+            "execution_in_progress": self._execution_in_progress(),
         }
 
     def start(self) -> None:
@@ -705,6 +759,31 @@ class FreecadMCPPlugin:
             self._process_queue()
             time.sleep(QUEUE_POLL_INTERVAL_MS / 1000.0)
 
+    def _execution_in_progress(self) -> bool:
+        """Return whether an execution request is still active."""
+        with self._active_request_lock:
+            return (
+                self._active_request is not None
+                and not self._active_request.completed.is_set()
+            )
+
+    def _claim_execution_request(self, request: ExecutionRequest) -> bool:
+        """Claim the single execution slot for a request."""
+        with self._active_request_lock:
+            if (
+                self._active_request is not None
+                and not self._active_request.completed.is_set()
+            ):
+                return False
+            self._active_request = request
+            return True
+
+    def _release_execution_request(self, request: ExecutionRequest) -> None:
+        """Release the execution slot if it still belongs to the request."""
+        with self._active_request_lock:
+            if self._active_request is request:
+                self._active_request = None
+
     def _process_queue(self) -> None:
         """Process pending execution requests on the main thread.
 
@@ -714,16 +793,29 @@ class FreecadMCPPlugin:
         while not self._request_queue.empty():
             try:
                 request = self._request_queue.get_nowait()
-                result = self._execute_code_sync(request.code)
-                request.result = result
-                request.completed.set()
-                # Track request for status bar
-                self._record_request()
             except queue.Empty:
                 break
+
+            if not request.start_if_pending():
+                self._release_execution_request(request)
+                request.completed.set()
+                continue
+
+            try:
+                result = self._execute_code_sync(request.code)
+                request.result = result
+                self._record_request()
             except Exception as e:
+                request.result = {
+                    "success": False,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                }
                 if FREECAD_AVAILABLE:
                     FreeCAD.Console.PrintError(f"Queue processing error: {e}\n")
+            finally:
+                self._release_execution_request(request)
+                request.completed.set()
 
     def _execute_via_queue(
         self,
@@ -740,6 +832,14 @@ class FreecadMCPPlugin:
             Execution result dictionary.
         """
         request = ExecutionRequest(code, timeout_ms)
+        if not self._claim_execution_request(request):
+            return {
+                "success": False,
+                "error_type": "BusyError",
+                "error_message": "Another FreeCAD execution is still in progress",
+                "execution_time_ms": 0,
+                "execution_continues": True,
+            }
         self._request_queue.put(request)
 
         # Wait for completion
@@ -750,11 +850,18 @@ class FreecadMCPPlugin:
                 "error_message": "No result returned",
             }
         else:
+            cancelled = request.cancel_if_pending()
+            if cancelled:
+                self._release_execution_request(request)
+            message = f"Execution timed out after {timeout_ms}ms"
+            if not cancelled:
+                message += "; the operation started and may still be running"
             return {
                 "success": False,
                 "error_type": "TimeoutError",
-                "error_message": f"Execution timed out after {timeout_ms}ms",
+                "error_message": message,
                 "execution_time_ms": timeout_ms,
+                "execution_continues": not cancelled,
             }
 
     def _execute_code_sync(self, code: str) -> dict[str, Any]:
@@ -1075,16 +1182,21 @@ class FreecadMCPPlugin:
         """
         return {"instance_id": self._instance_id}
 
-    def _xmlrpc_execute(self, code: str) -> dict[str, Any]:
+    def _xmlrpc_execute(
+        self,
+        code: str,
+        timeout_ms: int = 30000,
+    ) -> dict[str, Any]:
         """XML-RPC execute handler (neka-nat compatible).
 
         Args:
             code: Python code to execute.
+            timeout_ms: Maximum time to wait for execution in milliseconds.
 
         Returns:
             Execution result dictionary.
         """
-        return self._execute_via_queue(code, 30000)
+        return _xmlrpc_safe_value(self._execute_via_queue(code, timeout_ms))
 
     # Valid view types for screenshot capture
     _VALID_VIEW_TYPES = frozenset(

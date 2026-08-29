@@ -201,7 +201,7 @@ The [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is a standa
 1. **Workbench Integration**: Access workbench-specific functionality
 1. **Model Validation**: Check model integrity and constraints
 1. **Export Capabilities**: Generate various output formats (STEP, STL, etc.)
-1. **Version Compatibility**: Support FreeCAD 0.21+ and 1.0+
+1. **Version Compatibility**: Support FreeCAD 1.0+
 
 ---
 

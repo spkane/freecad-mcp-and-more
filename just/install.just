@@ -263,7 +263,7 @@ mcp-bridge-workbench:
 
         icon_text = wb_icon.text if wb_icon is not None else 'Resources/Icons/FreecadRobustMCPBridge.svg'
         ET.SubElement(standalone, 'icon').text = icon_text
-        fcmin_text = wb_freecadmin.text if wb_freecadmin is not None else '0.21'
+        fcmin_text = wb_freecadmin.text if wb_freecadmin is not None else '1.0'
         ET.SubElement(standalone, 'freecadmin').text = fcmin_text
 
         # Add content/workbench section

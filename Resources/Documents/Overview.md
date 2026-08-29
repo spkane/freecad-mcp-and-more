@@ -26,11 +26,11 @@ Install via `pip install freecad-robust-mcp` or `uv tool install freecad-robust-
 
 **Capabilities:**
 
-- 150+ CAD tools for creating and modifying geometry
-- PartDesign and Sketcher support
-- Export to STEP, STL, 3MF, OBJ, IGES formats
-- Screenshot capture and view control (GUI mode)
-- Python code execution in FreeCAD context
+- 54 focused tools for native PartDesign and Sketcher workflows
+- Typed sketch, constraint, feature, expression, and validation commands
+- FCStd persistence plus STEP and STL export
+- Screenshot capture for visual review (GUI mode)
+- Opt-in legacy full tool profile for existing integrations
 
 ## Quick Start
 

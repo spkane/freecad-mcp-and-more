@@ -116,13 +116,9 @@ doc = FreeCAD.newDocument(doc_name)
 body = doc.addObject("PartDesign::Body", "BracketBody")
 
 # Step 3: Create base sketch on XY plane using body.newObject
-# FreeCAD 1.x uses AttachmentSupport, older versions use Support
 sketch = body.newObject("Sketcher::SketchObject", "BaseSketch")
 plane_obj = body.Origin.getObject("XY_Plane")
-if hasattr(sketch, "AttachmentSupport"):
-    sketch.AttachmentSupport = [(plane_obj, "")]
-else:
-    sketch.Support = (plane_obj, [""])
+sketch.AttachmentSupport = [(plane_obj, "")]
 sketch.MapMode = "FlatFace"
 
 # Add rectangle for base (40x30mm)
@@ -171,10 +167,7 @@ if pad_valid:
             top_face = f"Face{{i+1}}"
 
 if top_face:
-    if hasattr(pocket_sketch, "AttachmentSupport"):
-        pocket_sketch.AttachmentSupport = [(pad, top_face)]
-    else:
-        pocket_sketch.Support = (pad, [top_face])
+    pocket_sketch.AttachmentSupport = [(pad, top_face)]
     pocket_sketch.MapMode = "FlatFace"
 
     # Add circle for pocket (centered, radius 8mm)

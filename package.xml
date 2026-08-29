@@ -14,7 +14,7 @@
     <license file="LICENSE">MIT</license>
     <license file="LICENSE-ICON">CC-BY-NC-SA-4.0</license>
 
-    <freecadmin>0.21</freecadmin>
+    <freecadmin>1.0</freecadmin>
 
     <url type="repository" branch="main">https://github.com/spkane/freecad-addon-robust-mcp-server</url>
     <url type="bugtracker">https://github.com/spkane/freecad-addon-robust-mcp-server/issues</url>
@@ -36,11 +36,11 @@
             <name>Robust MCP Bridge</name>
             <version>0.6.2</version>
             <date>2026-01-18</date>
-            <description>Robust MCP Bridge workbench for AI assistant integration with FreeCAD. Uses the Model Context Protocol (MCP) to connect AI assistants like Claude Code and Cursor to FreeCAD. Works in both GUI mode (with full visual features including screenshots, colors, and camera control) and headless mode (for automation and CI/CD). Provides toolbar commands to start, stop, and monitor the MCP bridge server. Supports XML-RPC and JSON-RPC protocols with 150+ CAD tools.</description>
+            <description>Robust MCP Bridge workbench for AI assistant integration with FreeCAD. Uses the Model Context Protocol (MCP) to connect AI assistants like Claude Code and Cursor to FreeCAD. Works in both GUI mode (with screenshots and visual review) and headless mode (for automation and CI/CD). Provides toolbar commands to start, stop, and monitor the MCP bridge server. Supports XML-RPC and JSON-RPC with a focused native PartDesign tool profile.</description>
             <classname>FreecadRobustMCPBridgeWorkbench</classname>
             <subdirectory>./freecad/RobustMCPBridge/</subdirectory>
             <icon>Resources/Icons/FreecadRobustMCPBridge.svg</icon>
-            <freecadmin>0.21</freecadmin>
+            <freecadmin>1.0</freecadmin>
         </workbench>
 
     </content>

@@ -1,10 +1,12 @@
 """Tests for object tools module."""
 
+import base64
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from freecad_mcp.bridge.base import ExecutionResult, ObjectInfo
+from freecad_mcp.tools.objects import _decode_query_cursor, _query_signature
 
 
 class TestObjectTools:
@@ -86,6 +88,80 @@ class TestObjectTools:
         assert result[1]["name"] == "Cylinder"
         assert result[1]["visibility"] is False
         mock_bridge.get_objects.assert_called_once_with("TestDoc")
+
+    @pytest.mark.asyncio
+    async def test_query_objects_filters_and_bounds_results(
+        self, register_tools, mock_bridge
+    ):
+        """query_objects should filter in FreeCAD and return a bounded page."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={
+                    "document_ref": {"name": "TestDoc", "revision": "rev_7"},
+                    "items": [
+                        {
+                            "name": "DoorPocket",
+                            "label": "Door Pocket",
+                            "type_id": "PartDesign::Pocket",
+                            "visibility": True,
+                        }
+                    ],
+                    "matched_count": 2,
+                    "returned_count": 1,
+                    "next_cursor": "cmV2Xzc6cXVlcnk6MQ",
+                    "truncated": True,
+                },
+                stdout="",
+                stderr="",
+                execution_time_ms=5.0,
+            )
+        )
+
+        query_objects = register_tools["query_objects"]
+        result = await query_objects(
+            query="door",
+            type_ids=["PartDesign::Pocket"],
+            visible_only=True,
+            detail="summary",
+            limit=1,
+            doc_name="TestDoc",
+        )
+
+        assert result["items"][0]["name"] == "DoorPocket"
+        assert result["truncated"] is True
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "matched.sort(key=lambda item: item.Name)" in code
+        assert "page = matched[offset:offset + limit]" in code
+        assert 'detail == "detailed"' in code
+        assert "solid_count" in code
+        assert "require_expected_revision(doc, expected_revision)" in code
+        assert "cursor_revision != current_revision" in code
+        assert "encode_cursor(current_revision" in code
+        assert "candidate.Content" in code
+        assert "-(2 ** 31) <= value < 2 ** 31" in code
+        compile(code, "<query_objects>", "exec")
+        mock_bridge.get_objects.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_query_objects_rejects_bad_cursor(self, register_tools, mock_bridge):
+        """A malformed page cursor should fail before reaching FreeCAD."""
+        query_objects = register_tools["query_objects"]
+
+        with pytest.raises(ValueError, match="Cursor is invalid"):
+            await query_objects(cursor="not-an-offset")
+
+        mock_bridge.execute_python.assert_not_called()
+
+    def test_query_cursor_rejects_noncanonical_trailing_characters(self):
+        """Opaque cursors should have one strict URL-safe Base64 representation."""
+        signature = _query_signature(None, [], [], False, "summary")
+        payload = f"rev_example:{signature}:4".encode()
+        cursor = base64.urlsafe_b64encode(payload).decode().rstrip("=")
+
+        assert _decode_query_cursor(cursor, signature) == ("rev_example", 4)
+        with pytest.raises(ValueError, match="Cursor is invalid"):
+            _decode_query_cursor(cursor + "!!!!", signature)
 
     @pytest.mark.asyncio
     async def test_inspect_object(self, register_tools, mock_bridge):

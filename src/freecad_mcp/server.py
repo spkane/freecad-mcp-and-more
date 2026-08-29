@@ -5,12 +5,10 @@ integration with AI assistants (Claude, GPT, and other MCP-compatible tools).
 It exposes tools, resources, and prompts for interacting with FreeCAD.
 
 Features:
-    - Full Python console access (GUI and headless modes)
-    - Document and object management
-    - PartDesign workflow (sketches, pads, pockets, fillets)
-    - Import/export (STEP, STL, OBJ, IGES)
-    - Macro management
-    - Screenshot capture
+    - Focused native PartDesign and Sketcher tool interface
+    - Incremental sketch, constraint, feature, and expression workflows
+    - Document persistence, inspection, STEP/STL export, and screenshots
+    - Opt-in full historical tool profile
     - Multiple connection modes (embedded, XML-RPC, socket)
 
 Example:
@@ -34,6 +32,7 @@ Example:
 import argparse
 import logging
 import os
+import re
 import sys
 import uuid
 from collections.abc import AsyncIterator
@@ -43,6 +42,7 @@ from typing import TYPE_CHECKING, Any
 from mcp.server.fastmcp import FastMCP
 
 from freecad_mcp.config import FreecadMode, TransportType, get_config
+from freecad_mcp.guidance import PARAMETRIC_PARTS_GUIDANCE
 
 if TYPE_CHECKING:
     from freecad_mcp.bridge.base import FreecadBridge
@@ -57,6 +57,22 @@ INSTANCE_ID: str = str(uuid.uuid4())
 
 # Global bridge instance (initialized on startup via lifespan)
 _bridge: Any = None
+
+MINIMUM_FREECAD_VERSION = (1, 0)
+
+
+def _require_supported_freecad_version(version: Any) -> str:
+    """Return the version text after enforcing the FreeCAD 1.0 minimum."""
+    version_text = str(version)
+    match = re.match(r"^\s*(\d+)\.(\d+)", version_text)
+    if match is None:
+        msg = f"Could not parse FreeCAD version: {version_text!r}"
+        raise RuntimeError(msg)
+    parsed = (int(match.group(1)), int(match.group(2)))
+    if parsed < MINIMUM_FREECAD_VERSION:
+        msg = f"FreeCAD 1.0 or newer is required; connected to {version_text}"
+        raise RuntimeError(msg)
+    return version_text
 
 
 def get_instance_id() -> str:
@@ -134,18 +150,18 @@ async def lifespan(_server: FastMCP) -> AsyncIterator[None]:
     await _bridge.connect()
     logger.info("FreeCAD bridge connected")
 
-    # Log FreeCAD version
     try:
-        version = await _bridge.get_freecad_version()
+        try:
+            version = await _bridge.get_freecad_version()
+        except Exception as exc:
+            msg = "Could not verify the connected FreeCAD version"
+            raise RuntimeError(msg) from exc
+        version_text = _require_supported_freecad_version(version.get("version"))
         logger.info(
             "FreeCAD %s (GUI: %s)",
-            version.get("version", "unknown"),
+            version_text,
             "available" if version.get("gui_available") else "headless",
         )
-    except Exception as e:
-        logger.warning("Could not get FreeCAD version: %s", e)
-
-    try:
         yield
     finally:
         # Shutdown
@@ -155,28 +171,43 @@ async def lifespan(_server: FastMCP) -> AsyncIterator[None]:
             _bridge = None
 
 
+TOOL_PROFILE = os.environ.get("FREECAD_TOOL_PROFILE", "parametric").strip().lower()
+if TOOL_PROFILE not in {"parametric", "full"}:
+    raise ValueError(
+        f"FREECAD_TOOL_PROFILE must be 'parametric' or 'full', not {TOOL_PROFILE!r}"
+    )
+
+
+def _instructions_for_profile(profile: str) -> str | None:
+    """Return focused server guidance only for the parametric profile."""
+    return PARAMETRIC_PARTS_GUIDANCE if profile == "parametric" else None
+
+
 # Create the Robust MCP Server instance with lifespan
 mcp = FastMCP(
     name="freecad-mcp",
+    instructions=_instructions_for_profile(TOOL_PROFILE),
     lifespan=lifespan,
 )
 
 
 def register_all_components() -> None:
     """Register all MCP components (tools, resources, prompts)."""
-    # Register tools
-    from freecad_mcp.tools import register_all_tools
+    from freecad_mcp.tools import register_all_tools, register_parametric_tools
 
-    register_all_tools(mcp, get_bridge)
+    if TOOL_PROFILE == "parametric":
+        register_parametric_tools(mcp, get_bridge)
+    else:
+        register_all_tools(mcp, get_bridge)
 
-    # Register resources
-    from freecad_mcp.resources import register_resources
+    if TOOL_PROFILE == "parametric":
+        from freecad_mcp.prompts.parametric import register_prompts
+        from freecad_mcp.resources.parametric import register_resources
+    else:
+        from freecad_mcp.prompts import register_prompts
+        from freecad_mcp.resources import register_resources
 
     register_resources(mcp, get_bridge)
-
-    # Register prompts
-    from freecad_mcp.prompts import register_prompts
-
     register_prompts(mcp, get_bridge)
 
 
@@ -242,11 +273,16 @@ async def check_freecad_connection(
             print(f"  Host: {config.socket_host}:{config.socket_port}")
 
         await bridge.connect()
-        version_info = await bridge.get_freecad_version()
-        await bridge.disconnect()
+        try:
+            version_info = await bridge.get_freecad_version()
+            version_text = _require_supported_freecad_version(
+                version_info.get("version")
+            )
+        finally:
+            await bridge.disconnect()
 
         print("✓ Connection successful!")
-        print(f"  FreeCAD version: {version_info.get('version', 'unknown')}")
+        print(f"  FreeCAD version: {version_text}")
         print(f"  GUI available: {version_info.get('gui_available', 'unknown')}")
         return True
     except Exception as e:
@@ -303,7 +339,9 @@ Environment Variables:
   FREECAD_TRANSPORT      Transport type: stdio or http (default: stdio)
   FREECAD_HTTP_PORT      Port for HTTP transport (default: 8000)
   FREECAD_LOG_LEVEL      Logging level: DEBUG, INFO, WARNING, ERROR
-                         (default: INFO)
+                          (default: INFO)
+  FREECAD_TOOL_PROFILE   Tool interface: parametric or full
+                         (default: parametric)
 
 Examples:
   # Start with default settings (XML-RPC mode, stdio transport)
@@ -422,6 +460,9 @@ def main() -> None:
     logger.info("Instance ID: %s", INSTANCE_ID)
     logger.info("Mode: %s", config.mode.value)
     logger.info("Transport: %s", config.transport.value)
+    logger.info(
+        "Tool profile: %s", os.environ.get("FREECAD_TOOL_PROFILE", "parametric")
+    )
 
     # Run the server
     if config.transport == TransportType.HTTP:

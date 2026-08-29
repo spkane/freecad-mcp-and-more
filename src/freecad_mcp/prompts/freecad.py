@@ -70,7 +70,7 @@ You are connected to the FreeCAD Robust MCP Server. Follow these guidelines for 
 ## Critical Rules
 
 ### Transaction Support (Undo/Redo)
-**ALL tool operations are wrapped in transactions** - every change can be undone:
+Document mutation tools use transactions where FreeCAD supports undo:
 - Use `undo()` to revert any operation
 - Use `redo()` to redo after undo
 - Use `get_undo_redo_status()` to see available undo steps
@@ -84,13 +84,13 @@ You are connected to the FreeCAD Robust MCP Server. Follow these guidelines for 
 ```
 
 ### For Error Prevention
-- **All operations support undo** - simply call `undo()` if something goes wrong
+- **Use transactional mutation tools** so failed changes can roll back
 - **Use safe_execute()** for risky operations - auto-undoes on failure
 - **Use validate_document()** to check all objects after complex operations
 
 ### Version Compatibility
-The MCP tools automatically handle FreeCAD version differences (1.0 vs older).
-No special handling needed on your part.
+FreeCAD 1.0 or newer is required. The server rejects older releases because the
+native PartDesign, attachment, and variable APIs are not compatible.
 
 ---
 
@@ -104,7 +104,7 @@ No special handling needed on your part.
 | Add sketch constraints | `constrain_horizontal`, `constrain_distance`, etc. |
 | Check for errors | `validate_object` or `validate_document` |
 | Debug issues | `get_console_output(lines=50)` |
-| Undo any operation | `undo()` (all operations are undoable) |
+| Undo a document mutation | `undo()` when the tool uses a transaction |
 | Safe execution | `safe_execute(code="...", validate_after=True)` |
 
 ---
@@ -210,11 +210,9 @@ All PartDesign operations are wrapped in transactions - use `undo()` to revert a
 6. validate_object(object_name="Pad")  # Check the result
 ```
 
-## Version Compatibility
-FreeCAD 1.x changed sketch attachment:
-- Old: `sketch.Support = (plane, [''])`
-- New: `sketch.AttachmentSupport = [(plane, '')]`
-The MCP tools handle this automatically.
+## Version Requirement
+FreeCAD 1.0 or newer is required. Sketch attachment uses the native
+`sketch.AttachmentSupport = [(plane, '')]` property.
 
 ## Adding Features
 - **Additive**: pad_sketch, revolution_sketch, loft_sketches, sweep_sketch

@@ -208,6 +208,69 @@ class TestValidationTools:
         assert result["valid"] is True  # Valid but with warnings
         assert len(result["warnings"]) > 0
 
+    @pytest.mark.asyncio
+    async def test_validate_object_can_require_one_solid(
+        self, register_tools, mock_bridge
+    ):
+        """validate_object should enforce an explicit single-solid policy."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={
+                    "valid": False,
+                    "object_name": "Body",
+                    "shape_valid": True,
+                    "has_errors": False,
+                    "state": [],
+                    "recompute_needed": False,
+                    "volume": 1000.0,
+                    "area": 600.0,
+                    "solid_count": 2,
+                    "single_solid": False,
+                    "error_messages": ["Expected exactly one solid, found 2"],
+                    "warnings": [],
+                },
+                stdout="",
+                stderr="",
+                execution_time_ms=1.0,
+                error_traceback=None,
+            )
+        )
+
+        validate_object = register_tools["validate_object"]
+        result = await validate_object("Body", require_single_solid=True)
+
+        assert result["solid_count"] == 2
+        assert result["single_solid"] is False
+        assert result["valid"] is False
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "len(shape.Solids)" in code
+        assert "Expected exactly one solid" in code
+
+    @pytest.mark.asyncio
+    async def test_validate_object_rejects_null_and_touched_geometry(
+        self, register_tools, mock_bridge
+    ):
+        """Null feature shapes and unrecomputed state must not pass validation."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={"valid": False},
+                stdout="",
+                stderr="",
+                execution_time_ms=1.0,
+            )
+        )
+
+        await register_tools["validate_object"]("Pad")
+
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "shape.isNull()" in code
+        assert 'error_messages.append("Object still needs recompute")' in code
+        assert "and not recompute_needed" in code
+        assert '"PartDesign::Plane"' in code
+        assert "obj.TypeId not in shape_exempt_type_ids" in code
+
     # ========== validate_document tests ==========
 
     @pytest.mark.asyncio
@@ -338,6 +401,67 @@ class TestValidationTools:
 
         assert result["valid"] is False
         assert "No active document" in result["summary"]
+
+    @pytest.mark.asyncio
+    async def test_validate_document_reports_solid_counts(
+        self, register_tools, mock_bridge
+    ):
+        """Document validation should expose solid counts and policy failures."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={
+                    "valid": False,
+                    "doc_name": "TestDoc",
+                    "total_objects": 2,
+                    "valid_objects": 2,
+                    "invalid_objects": [],
+                    "objects_with_errors": [],
+                    "objects_needing_recompute": [],
+                    "recompute_needed": False,
+                    "solid_counts": {"Body": 2},
+                    "single_solid_violations": ["Body"],
+                    "summary": "Document 'TestDoc' has issues: 1 single-solid violation",
+                },
+                stdout="",
+                stderr="",
+                execution_time_ms=1.0,
+                error_traceback=None,
+            )
+        )
+
+        validate_document = register_tools["validate_document"]
+        result = await validate_document(require_single_solid=True)
+
+        assert result["solid_counts"] == {"Body": 2}
+        assert result["single_solid_violations"] == ["Body"]
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "single_solid_violations" in code
+        assert 'obj.TypeId == "PartDesign::Body"' in code
+
+    @pytest.mark.asyncio
+    async def test_validate_document_rejects_touched_and_null_bodies(
+        self, register_tools, mock_bridge
+    ):
+        """Document health must fail until Bodies have a current single solid."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={"valid": False},
+                stdout="",
+                stderr="",
+                execution_time_ms=1.0,
+            )
+        )
+
+        await register_tools["validate_document"](require_single_solid=True)
+
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert 'if "Touched" in state:' in code
+        assert "is_valid = False" in code
+        assert "shape is None or shape.isNull()" in code
+        assert "solid_counts[obj.Name] = 0" in code
+        assert "and not objects_needing_recompute" in code
 
     # ========== undo_if_invalid tests ==========
 
