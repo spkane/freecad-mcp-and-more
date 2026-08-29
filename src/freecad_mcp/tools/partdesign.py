@@ -334,6 +334,32 @@ input_volume = float(body.Shape.Volume)
 """
 
 
+_ADDITIVE_INPUT_VALIDATION = """
+input_shape = getattr(body, "Shape", None)
+if input_shape is None or input_shape.isNull():
+    input_volume = 0.0
+elif not input_shape.isValid() or len(input_shape.Solids) != 1:
+    raise RuntimeError(
+        "VALIDATION_FAILED: Additive feature requires an empty Body "
+        "or one valid input solid"
+    )
+else:
+    input_volume = float(input_shape.Volume)
+"""
+
+
+_MATERIAL_ADDITION_VALIDATION = """
+added_volume = float(feature_shape.Volume) - input_volume
+volume_tolerance = max(1e-9, abs(input_volume) * 1e-9)
+if added_volume <= volume_tolerance:
+    raise RuntimeError(
+        "VALIDATION_FAILED: Additive feature added no material "
+        "(input volume %.12g, result volume %.12g)"
+        % (input_volume, float(feature_shape.Volume))
+    )
+"""
+
+
 _MATERIAL_REMOVAL_VALIDATION = """
 shape = feature_shape
 removed_volume = input_volume - float(shape.Volume)
@@ -413,12 +439,15 @@ def _feature_validation_code(
     feature_variable: str,
     body_variable: str = "body",
     *,
+    require_material_addition: bool = False,
     require_material_removal: bool = False,
 ) -> str:
     """Build embedded FreeCAD validation for one newly created feature."""
     code = _FEATURE_VALIDATION_TEMPLATE.replace(
         "__FEATURE__", feature_variable
     ).replace("__BODY__", body_variable)
+    if require_material_addition:
+        code += _MATERIAL_ADDITION_VALIDATION
     if require_material_removal:
         code += _MATERIAL_REMOVAL_VALIDATION
     return "\n".join(f"    {line}" if line else "" for line in code.splitlines())
@@ -1533,6 +1562,8 @@ for obj in doc.Objects:
 if body is None:
     raise ValueError("Sketch must be inside a PartDesign Body for Pad operation")
 
+{_ADDITIVE_INPUT_VALIDATION}
+
 open_owned_transaction(doc, "Pad Sketch")
 try:
     pad_name = {name!r} or "Pad"
@@ -1549,7 +1580,7 @@ try:
     pad.Reversed = {reversed}
 
     doc.recompute()
-{_feature_validation_code("pad")}
+{_feature_validation_code("pad", require_material_addition=True)}
 {_feature_result_code()}
     doc.commitTransaction()
 except Exception:
@@ -1931,6 +1962,8 @@ for obj in doc.Objects:
 if body is None:
     raise ValueError("Sketch must be inside a PartDesign Body for Revolution operation")
 
+{_ADDITIVE_INPUT_VALIDATION}
+
 open_owned_transaction(doc, "Revolution Sketch")
 try:
     rev_name = {name!r} or "Revolution"
@@ -1956,7 +1989,7 @@ try:
             rev.ReferenceAxis = (sketch, ["H_Axis"])
 
     doc.recompute()
-{_feature_validation_code("rev")}
+{_feature_validation_code("rev", require_material_addition=True)}
 {_feature_result_code()}
     doc.commitTransaction()
 except Exception:
@@ -2264,6 +2297,7 @@ try:
     # Set direction
     dir_name = {direction!r}
     pattern.Direction = (body.Origin.getObject(f"{{dir_name}}_Axis"), [""])
+    body.Tip = pattern
 
     doc.recompute()
 {_feature_validation_code("pattern")}
@@ -2351,6 +2385,7 @@ try:
     # Set axis
     axis_name = {axis!r}
     pattern.Axis = (body.Origin.getObject(f"{{axis_name}}_Axis"), [""])
+    body.Tip = pattern
 
     doc.recompute()
 {_feature_validation_code("pattern")}
@@ -2697,6 +2732,8 @@ if body is None:
 if any(sketch not in body.Group for sketch in sketches):
     raise ValueError("INVALID_INPUT: All loft sketches must be in the same Body")
 
+{_ADDITIVE_INPUT_VALIDATION}
+
 open_owned_transaction(doc, "Loft Sketches")
 try:
     loft_name = {name!r} or "Loft"
@@ -2707,7 +2744,7 @@ try:
     loft.Closed = {closed}
 
     doc.recompute()
-{_feature_validation_code("loft")}
+{_feature_validation_code("loft", require_material_addition=True)}
 {_feature_result_code()}
     doc.commitTransaction()
 except Exception:
@@ -2762,7 +2799,11 @@ except Exception:
             )
 
         code = f"""
+{WORKFLOW_HELPERS}
+
 doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+if doc is None:
+    raise ValueError("NOT_FOUND: No active document")
 
 profile = doc.getObject({profile_sketch!r})
 if profile is None:
@@ -2783,8 +2824,9 @@ for obj in doc.Objects:
 if body is None:
     raise ValueError("Sketches must be inside a PartDesign Body for Sweep operation")
 
-# Wrap in transaction for undo support
-doc.openTransaction("Sweep Sketch")
+{_ADDITIVE_INPUT_VALIDATION}
+
+open_owned_transaction(doc, "Sweep Sketch")
 try:
     sweep_name = {name!r} or "Sweep"
     sweep = body.newObject("PartDesign::AdditivePipe", sweep_name)
@@ -2793,21 +2835,22 @@ try:
     sweep.Transition = {transition_map[transition]}
 
     doc.recompute()
+{_feature_validation_code("sweep", require_material_addition=True)}
+    _result_ = {{
+        "name": sweep.Name,
+        "label": sweep.Label,
+        "type_id": sweep.TypeId,
+    }}
     doc.commitTransaction()
 except Exception:
-    doc.abortTransaction()
+    abort_owned_transaction(doc)
+    doc.recompute()
     raise
-
-_result_ = {{
-    "name": sweep.Name,
-    "label": sweep.Label,
-    "type_id": sweep.TypeId,
-}}
 """
         result = await bridge.execute_python(code)
         if result.success:
             return result.result
-        raise ValueError(result.error_traceback or "Sweep failed")
+        raise bridge_workflow_error(result.error_traceback, "Sweep failed")
 
     # =========================================================================
     # PartDesign Datum Features

@@ -47,7 +47,9 @@ saved-script runner.
 `App::VarSet`. `bind_expressions` applies related feature and sketch bindings in
 one transaction. Paths include ordinary properties such as `Length`, attachment
 properties such as `AttachmentOffset.Base.z`, and sketch dimensions such as
-`Constraints[8]`. `set_expression` remains available for local repair.
+`Constraints[8]`. If a variable batch fails, its error identifies each rejected
+property and original expression and the complete batch rolls back.
+`set_expression` remains available for local repair.
 
 `query_objects` filters in FreeCAD, sorts deterministically, and returns at most
 the requested page size. Use summary mode by default and detailed mode only for
@@ -91,7 +93,9 @@ its feature is created.
 Create primary form first, cuts and patterns second, and fillets or chamfers
 last. Give intended unions real overlap and extend through-cut profiles beyond
 the target material. These feature mutations recompute and reject null, invalid,
-or multi-solid PartDesign Body results before committing.
+or multi-solid PartDesign Body results before committing. Additive mutations
+also reject zero or negative volume gain. Native patterns must become the Body
+Tip; disconnected multi-solid patterns remain invalid and roll back.
 
 ### Validation, Export, And Review
 

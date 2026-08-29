@@ -1,5 +1,6 @@
 """Tests for PartDesign tools module."""
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -723,6 +724,40 @@ class TestPartDesignTools:
         mock_bridge.execute_python.assert_called_once()
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("tool_name", "arguments"),
+        [
+            ("linear_pattern", {"feature_name": "Pad"}),
+            ("polar_pattern", {"feature_name": "Pad"}),
+        ],
+    )
+    async def test_patterns_promote_created_feature_to_body_tip(
+        self,
+        register_tools: dict[str, Any],
+        mock_bridge: AsyncMock,
+        tool_name: str,
+        arguments: dict[str, Any],
+    ) -> None:
+        """Native patterns should expose their result as the Body shape."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={"name": "Pattern"},
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        await register_tools[tool_name](**arguments)
+
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "body.Tip = pattern" in code
+        assert code.index("body.Tip = pattern") < code.index("doc.recompute()")
+        assert "Created feature is not the Body tip" in code
+        compile(code, f"<{tool_name}>", "exec")
+
+    @pytest.mark.asyncio
     async def test_mirrored_feature(self, register_tools, mock_bridge):
         """mirrored_feature should mirror a feature via execute_python."""
         mock_bridge.execute_python = AsyncMock(
@@ -788,6 +823,48 @@ class TestPartDesignTools:
         assert "abort_owned_transaction(doc)" in code
         assert "candidate.Content" in code
         assert code.index('"next_inputs"') < code.index("doc.commitTransaction()")
+        compile(code, f"<{tool_name}>", "exec")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("tool_name", "arguments"),
+        [
+            ("pad_sketch", {"sketch_name": "Sketch", "length": 10}),
+            ("revolution_sketch", {"sketch_name": "Sketch"}),
+            ("loft_sketches", {"sketch_names": ["Sketch", "Sketch001"]}),
+            (
+                "sweep_sketch",
+                {"profile_sketch": "Profile", "spine_sketch": "Spine"},
+            ),
+        ],
+    )
+    async def test_additive_features_reject_non_positive_material_gain(
+        self,
+        register_tools: dict[str, Any],
+        mock_bridge: AsyncMock,
+        tool_name: str,
+        arguments: dict[str, Any],
+    ) -> None:
+        """Additive features must increase the Body volume meaningfully."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={"name": "Feature"},
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        await register_tools[tool_name](**arguments)
+
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "input_volume" in code
+        assert "added_volume = float(feature_shape.Volume) - input_volume" in code
+        assert "Additive feature added no material" in code
+        assert "open_owned_transaction(doc," in code
+        assert "abort_owned_transaction(doc)" in code
+        assert code.index("added_volume =") < code.index("doc.commitTransaction()")
         compile(code, f"<{tool_name}>", "exec")
 
     @pytest.mark.asyncio

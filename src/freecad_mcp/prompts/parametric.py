@@ -33,6 +33,8 @@ native feature tree with `define_variables`, `create_partdesign_body`,
 `create_constrained_sketch`, `bind_expressions`, and additive or subtractive
 feature tools such as `pad_sketch` and `pocket_sketch`. Use returned local
 validation and `query_objects` instead of repeatedly listing the whole document.
+Treat rejected additive material effects, disconnected patterns, and listed
+expression diagnostics as inputs to repair, not results to build upon.
 Use granular sketch and expression tools only for repair. Then complete the
 persistence, parameter-edit, export, render, and handoff gates above.
 """
@@ -53,7 +55,8 @@ Review findings before summary. Reject unsupported claims.
 5. Measure required features independently; bounds and render pixels are not
    substitutes for semantic measurements.
 6. Change each governing variable and verify changed and protected dimensions;
-   `define_variables` already recomputes the document.
+   `define_variables` already recomputes the document. On failure, require
+   property-scoped expression diagnostics and confirm the batch rolled back.
 7. Save FCStd, close, reopen, perform another governing-variable edit, and
    validate.
 8. Export only the validated final object, re-import STEP, and validate it.

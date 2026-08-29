@@ -219,11 +219,50 @@ try:
             var_set.setExpression(name, None)
             setattr(var_set, name, definition["value"])
 
+    def describe_expression_error(definition: dict, error: Exception) -> dict:
+        return {{
+            "object_name": var_set.Name,
+            "property_path": definition["name"],
+            "expression": definition["expression"],
+            "error": str(error),
+        }}
+
+    expression_diagnostics = []
+
+    def collect_expression_evaluation_errors(
+        definitions: list[dict], skipped_names: set[str]
+    ) -> None:
+        for definition in definitions:
+            expression = definition["expression"]
+            if expression is None or definition["name"] in skipped_names:
+                continue
+            try:
+                var_set.evalExpression(expression)
+            except Exception as error:
+                expression_diagnostics.append(
+                    describe_expression_error(definition, error)
+                )
+
+    rejected_expression_names = set()
     for definition in definitions:
         expression = definition["expression"]
         if expression is not None:
             name = definition["name"]
-            var_set.setExpression(name, expression)
+            try:
+                var_set.setExpression(name, expression)
+            except Exception as error:
+                rejected_expression_names.add(name)
+                expression_diagnostics.append(
+                    describe_expression_error(definition, error)
+                )
+    if expression_diagnostics:
+        collect_expression_evaluation_errors(
+            definitions, rejected_expression_names
+        )
+        raise RuntimeError(
+            "VALIDATION_FAILED: Expression assignment failed: "
+            "expression_diagnostics=%s" % expression_diagnostics
+        )
 
     doc.recompute()
     invalid_objects = [
@@ -236,7 +275,12 @@ try:
         )
     ]
     if invalid_objects:
-        raise RuntimeError(f"Recompute failed: {{invalid_objects}}")
+        collect_expression_evaluation_errors(definitions, set())
+        raise RuntimeError(
+            "VALIDATION_FAILED: Recompute failed: "
+            "invalid_objects=%s, expression_diagnostics=%s"
+            % (invalid_objects, expression_diagnostics)
+        )
 
     expressions = {{
         path: str(expression)

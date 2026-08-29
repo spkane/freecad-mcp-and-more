@@ -42,6 +42,13 @@ def register_resources(mcp: Any, get_bridge: Any) -> None:
                 "modeling_contract": {
                     "authoritative_artifact": "native FCStd PartDesign feature tree",
                     "construction": "task-oriented MCP sketch and feature tools",
+                    "mutations": (
+                        "transactional recompute with Body-tip, solid-count, "
+                        "and material-effect validation"
+                    ),
+                    "expression_failures": (
+                        "property-scoped diagnostics with complete rollback"
+                    ),
                     "python_execution_exposed": False,
                 },
                 "workflow": [

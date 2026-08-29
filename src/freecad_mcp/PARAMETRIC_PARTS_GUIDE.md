@@ -24,7 +24,8 @@ Prefer task-oriented operations that complete one coherent modeling step:
 2. Call `define_variables` once with a compact batch of governing dimensions and
    derived formulas. Store them in a native `App::VarSet`; use explicit units
    for lengths and angles. Use valid FreeCAD internal names: letters, numbers,
-   and underscores, starting with a letter or underscore.
+   and underscores, starting with a letter or underscore. A rejected batch
+   reports each failing property and expression and rolls back every definition.
 3. Call `create_constrained_sketch` with typed lines, arcs, circles, rectangles,
    points, and constraints. Use request-local symbolic IDs instead of guessing
    geometry indices. Require closed profiles and `FullyConstrained` when the
@@ -38,7 +39,9 @@ Prefer task-oriented operations that complete one coherent modeling step:
 5. Create native features with `pad_sketch`, `pocket_sketch`,
    `revolution_sketch`, `groove_sketch`, `loft_sketches`, and native pattern or
    dress-up tools. Feature results already include recompute status, Body Tip,
-   solid count, shape summary, and inputs for the next operation.
+   solid count, shape summary, and inputs for the next operation. Additive
+   features must increase Body volume; no-effect and volume-reducing results
+   roll back. A pattern must become the Body Tip and retain exactly one solid.
 6. Use `query_objects` for bounded name, label, or type searches. Request
    `detailed` output only for a small result set; do not repeatedly retrieve the
    complete document tree.

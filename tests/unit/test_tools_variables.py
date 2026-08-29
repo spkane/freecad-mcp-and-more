@@ -120,6 +120,20 @@ async def test_define_variables_batches_values_and_expressions(
     assert "abort_owned_transaction(doc)" in code
     assert "candidate.Content" in code
     assert 'or "Touched" in candidate.State' in code
+    assert "var_set.evalExpression(expression)" in code
+    assert (
+        "def describe_expression_error(definition: dict, error: Exception) -> dict:"
+        in code
+    )
+    assert "def collect_expression_evaluation_errors(" in code
+    assert "rejected_expression_names.add(name)" in code
+    assert "definitions, rejected_expression_names" in code
+    assert '"property_path": definition["name"]' in code
+    assert '"expression": definition["expression"]' in code
+    assert '"error": str(error)' in code
+    assert "expression_diagnostics=%s" in code
+    assert "VALIDATION_FAILED: Expression assignment failed" in code
+    assert "VALIDATION_FAILED: Recompute failed" in code
     assert code.index('"variables": serialized') < code.index("doc.commitTransaction()")
     compile(code, "<define_variables>", "exec")
 
