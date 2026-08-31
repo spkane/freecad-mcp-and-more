@@ -1,14 +1,22 @@
 """Tests for view and GUI tools module."""
 
+import base64
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from mcp.types import CallToolResult
 
 from freecad_mcp.bridge.base import ExecutionResult, ScreenshotResult, WorkbenchInfo
 
 
 class TestViewTools:
     """Tests for view and GUI tools."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate_screenshot_dir(self, tmp_path, monkeypatch):
+        """Keep screenshot persistence out of the working tree."""
+        monkeypatch.setenv("FREECAD_MCP_SCREENSHOT_DIR", str(tmp_path / "screenshots"))
 
     @pytest.fixture
     def mock_mcp(self):
@@ -49,7 +57,8 @@ class TestViewTools:
         mock_bridge.get_screenshot = AsyncMock(
             return_value=ScreenshotResult(
                 success=True,
-                data="iVBORw0KGgo...",  # Base64 PNG data
+                data="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+                "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
                 format="png",
                 width=800,
                 height=600,
@@ -60,9 +69,13 @@ class TestViewTools:
         get_screenshot = register_tools["get_screenshot"]
         result = await get_screenshot(view_angle="Isometric")
 
-        assert result["success"] is True
-        assert "data" in result
-        assert result["format"] == "png"
+        assert result.isError is False
+        assert any(block.type == "image" for block in result.content)
+        metadata = json.loads(
+            next(block for block in result.content if block.type == "text").text
+        )
+        assert metadata["success"] is True
+        assert metadata["format"] == "png"
         mock_bridge.get_screenshot.assert_called_once()
 
     @pytest.mark.asyncio
@@ -71,7 +84,8 @@ class TestViewTools:
         mock_bridge.get_screenshot = AsyncMock(
             return_value=ScreenshotResult(
                 success=True,
-                data="...",
+                data="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+                "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
                 format="png",
                 width=1920,
                 height=1080,
@@ -82,8 +96,11 @@ class TestViewTools:
         get_screenshot = register_tools["get_screenshot"]
         result = await get_screenshot(width=1920, height=1080)
 
-        assert result["width"] == 1920
-        assert result["height"] == 1080
+        metadata = json.loads(
+            next(block for block in result.content if block.type == "text").text
+        )
+        assert metadata["width"] == 1920
+        assert metadata["height"] == 1080
 
     @pytest.mark.asyncio
     async def test_get_screenshot_headless_error(self, register_tools, mock_bridge):
@@ -102,8 +119,9 @@ class TestViewTools:
         get_screenshot = register_tools["get_screenshot"]
         result = await get_screenshot()
 
-        assert result["success"] is False
-        assert "headless" in result["error"]
+        assert result.isError is True
+        assert json.loads(result.content[0].text)["success"] is False
+        assert "headless" in json.loads(result.content[0].text)["error"]
 
     @pytest.mark.asyncio
     async def test_get_screenshot_invalid_view_angle(self, register_tools, mock_bridge):
@@ -111,8 +129,9 @@ class TestViewTools:
         get_screenshot = register_tools["get_screenshot"]
         result = await get_screenshot(view_angle="InvalidAngle")
 
-        assert result["success"] is False
-        assert "Invalid view_angle" in result["error"]
+        assert result.isError is True
+        assert json.loads(result.content[0].text)["success"] is False
+        assert "Invalid view_angle" in json.loads(result.content[0].text)["error"]
 
     @pytest.mark.asyncio
     async def test_set_view_angle(self, register_tools, mock_bridge):
@@ -547,3 +566,154 @@ class TestViewTools:
 
         assert result["success"] is False
         assert "No document" in result["error"]
+
+
+class TestScreenshotEvidenceTransport:
+    """get_screenshot must deliver a viewable image and a retained PNG."""
+
+    @pytest.fixture
+    def mock_mcp(self):
+        mcp = MagicMock()
+        mcp._registered_tools = {}
+
+        def tool_decorator():
+            def wrapper(func):
+                mcp._registered_tools[func.__name__] = func
+                return func
+
+            return wrapper
+
+        mcp.tool = tool_decorator
+        return mcp
+
+    @pytest.fixture
+    def mock_bridge(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def register_tools(self, mock_mcp, mock_bridge):
+        from freecad_mcp.tools.view import register_view_tools
+
+        async def get_bridge():
+            return mock_bridge
+
+        register_view_tools(mock_mcp, get_bridge)
+        return mock_mcp._registered_tools
+
+    PNG_B64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+        "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    )
+
+    @pytest.fixture
+    def shot_bridge(self, mock_bridge):
+        mock_bridge.get_screenshot = AsyncMock(
+            return_value=ScreenshotResult(
+                success=True,
+                data=self.PNG_B64,
+                format="png",
+                width=640,
+                height=480,
+                error=None,
+            )
+        )
+        return mock_bridge
+
+    @pytest.mark.asyncio
+    async def test_returns_image_content_block(
+        self, register_tools, shot_bridge, tmp_path, monkeypatch
+    ):
+        """The model must receive a real ImageContent block, not base64 text."""
+        monkeypatch.setenv("FREECAD_MCP_SCREENSHOT_DIR", str(tmp_path))
+        result = await register_tools["get_screenshot"](view_angle="Isometric")
+
+        assert isinstance(result, CallToolResult)
+        assert result.isError is False
+        kinds = [block.type for block in result.content]
+        assert "image" in kinds, f"no image content block, got {kinds}"
+        image = next(b for b in result.content if b.type == "image")
+        assert image.mimeType == "image/png"
+        assert image.data == self.PNG_B64
+
+    @pytest.mark.asyncio
+    async def test_persists_png_into_run_directory(
+        self, register_tools, shot_bridge, tmp_path, monkeypatch
+    ):
+        """A deterministic PNG must be retained as run evidence."""
+        monkeypatch.setenv("FREECAD_MCP_SCREENSHOT_DIR", str(tmp_path))
+        result = await register_tools["get_screenshot"](
+            view_angle="Right", doc_name="Lighthouse"
+        )
+
+        written = sorted(tmp_path.glob("*.png"))
+        assert len(written) == 1, f"expected one retained PNG, got {written}"
+        assert written[0].read_bytes() == base64.b64decode(self.PNG_B64)
+        assert "Right" in written[0].name
+        assert "Lighthouse" in written[0].name
+
+        meta = json.loads(next(b for b in result.content if b.type == "text").text)
+        assert meta["path"] == str(written[0])
+        assert meta["view_angle"] == "Right"
+        assert meta["width"] == 640
+
+    @pytest.mark.asyncio
+    async def test_metadata_block_excludes_base64_payload(
+        self, register_tools, shot_bridge, tmp_path, monkeypatch
+    ):
+        """Base64 must not be duplicated into the text block."""
+        monkeypatch.setenv("FREECAD_MCP_SCREENSHOT_DIR", str(tmp_path))
+        result = await register_tools["get_screenshot"]()
+
+        text = next(b for b in result.content if b.type == "text").text
+        assert self.PNG_B64 not in text
+        assert "data" not in json.loads(text)
+
+    @pytest.mark.asyncio
+    async def test_successive_captures_do_not_overwrite(
+        self, register_tools, shot_bridge, tmp_path, monkeypatch
+    ):
+        """Each capture is retained separately so evidence is not lost."""
+        monkeypatch.setenv("FREECAD_MCP_SCREENSHOT_DIR", str(tmp_path))
+        await register_tools["get_screenshot"](view_angle="Front")
+        await register_tools["get_screenshot"](view_angle="Front")
+
+        assert len(sorted(tmp_path.glob("*.png"))) == 2
+
+    @pytest.mark.asyncio
+    async def test_capture_failure_is_reported_as_error(
+        self, register_tools, mock_bridge, tmp_path, monkeypatch
+    ):
+        """A headless or failed capture must be an explicit tool error."""
+        monkeypatch.setenv("FREECAD_MCP_SCREENSHOT_DIR", str(tmp_path))
+        mock_bridge.get_screenshot = AsyncMock(
+            return_value=ScreenshotResult(
+                success=False,
+                data=None,
+                format="png",
+                width=0,
+                height=0,
+                error="GUI not available",
+            )
+        )
+        result = await register_tools["get_screenshot"]()
+
+        assert result.isError is True
+        assert all(b.type == "text" for b in result.content)
+        assert "GUI not available" in result.content[0].text
+        assert not sorted(tmp_path.glob("*.png"))
+
+    @pytest.mark.asyncio
+    async def test_unwritable_directory_still_returns_image(
+        self, register_tools, shot_bridge, tmp_path, monkeypatch
+    ):
+        """Losing persistence must not cost the model its view of the model."""
+        target = tmp_path / "blocked"
+        target.write_text("not a directory")
+        monkeypatch.setenv("FREECAD_MCP_SCREENSHOT_DIR", str(target))
+
+        result = await register_tools["get_screenshot"]()
+
+        assert result.isError is False
+        assert any(b.type == "image" for b in result.content)
+        meta = json.loads(next(b for b in result.content if b.type == "text").text)
+        assert meta["path"] is None

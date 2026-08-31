@@ -5,8 +5,80 @@ capturing screenshots. Based on learnings from neka-nat which
 has excellent screenshot handling with view type detection.
 """
 
+import base64
+import binascii
+import itertools
+import json
+import os
+import re
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any
+
+from mcp.types import CallToolResult, ImageContent, TextContent
+
+_SCREENSHOT_SEQUENCE = itertools.count(1)
+"""Per-process counter keeping successive captures from overwriting each other."""
+
+
+def _screenshot_directory() -> Path:
+    """Resolve where retained screenshot evidence is written."""
+    configured = os.environ.get("FREECAD_MCP_SCREENSHOT_DIR")
+    if configured:
+        return Path(configured)
+    return Path.cwd() / "screenshots"
+
+
+def _safe_path_component(value: str) -> str:
+    """Reduce a document or view name to a filesystem-safe component."""
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("._")
+    return cleaned or "unnamed"
+
+
+def _persist_screenshot(
+    payload: bytes,
+    doc_name: str | None,
+    view_angle: str,
+    sequence: int,
+) -> str | None:
+    """Write one capture into the run directory, or None if it cannot be kept.
+
+    Persistence is best-effort: an unwritable directory must never cost the
+    model the image it just asked for.
+    """
+    directory = _screenshot_directory()
+    document = _safe_path_component(doc_name or "active")
+    view = _safe_path_component(view_angle)
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        target = directory / f"{sequence:03d}_{document}_{view}.png"
+        target.write_bytes(payload)
+    except OSError:
+        return None
+    return str(target)
+
+
+def _screenshot_error(
+    message: str, view_angle: str, doc_name: str | None
+) -> CallToolResult:
+    """Report a failed capture as an explicit tool error."""
+    return CallToolResult(
+        isError=True,
+        content=[
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "success": False,
+                        "error": message,
+                        "view_angle": view_angle,
+                        "document": doc_name,
+                    },
+                    indent=2,
+                ),
+            )
+        ],
+    )
 
 
 def register_view_tools(mcp: Any, get_bridge: Callable[[], Awaitable[Any]]) -> None:
@@ -23,8 +95,12 @@ def register_view_tools(mcp: Any, get_bridge: Callable[[], Awaitable[Any]]) -> N
         width: int = 800,
         height: int = 600,
         doc_name: str | None = None,
-    ) -> dict[str, Any]:
-        """Capture a screenshot of the FreeCAD 3D view.
+    ) -> CallToolResult:
+        """Capture a screenshot of the FreeCAD 3D view and return it as an image.
+
+        The image is returned as a viewable image content block and is also
+        written to disk as retained run evidence. Use this to visually check
+        that a feature you just created has the silhouette you intended.
 
         Requires GUI mode - will return an error in headless mode.
 
@@ -43,13 +119,9 @@ def register_view_tools(mcp: Any, get_bridge: Callable[[], Awaitable[Any]]) -> N
             doc_name: Document to capture. Uses active document if None.
 
         Returns:
-            Dictionary with screenshot result:
-                - success: Whether capture was successful
-                - data: Base64-encoded PNG image data (if success)
-                - format: Image format ("png")
-                - width: Actual image width
-                - height: Actual image height
-                - error: Error message (if not success)
+            A PNG image content block the model can look at, plus a text block
+            of JSON metadata: format, width, height, view_angle, document, and
+            path (the retained PNG, or null when it could not be written).
         """
         from freecad_mcp.bridge.base import ViewAngle
 
@@ -66,10 +138,11 @@ def register_view_tools(mcp: Any, get_bridge: Callable[[], Awaitable[Any]]) -> N
         }
 
         if view_angle not in angle_map:
-            return {
-                "success": False,
-                "error": f"Invalid view_angle: {view_angle}. Options: {list(angle_map.keys())}",
-            }
+            return _screenshot_error(
+                f"Invalid view_angle: {view_angle}. Options: {list(angle_map.keys())}",
+                view_angle,
+                doc_name,
+            )
 
         bridge = await get_bridge()
         result = await bridge.get_screenshot(
@@ -79,14 +152,40 @@ def register_view_tools(mcp: Any, get_bridge: Callable[[], Awaitable[Any]]) -> N
             doc_name=doc_name,
         )
 
-        return {
-            "success": result.success,
-            "data": result.data,
-            "format": result.format,
+        if not result.success or not result.data:
+            return _screenshot_error(
+                result.error or "Screenshot capture failed",
+                view_angle,
+                doc_name,
+            )
+
+        try:
+            payload = base64.b64decode(result.data, validate=True)
+        except (binascii.Error, ValueError):
+            return _screenshot_error(
+                "Screenshot capture returned malformed image data",
+                view_angle,
+                doc_name,
+            )
+
+        path = _persist_screenshot(
+            payload, doc_name, view_angle, next(_SCREENSHOT_SEQUENCE)
+        )
+        metadata = {
+            "success": True,
+            "format": result.format or "png",
             "width": result.width,
             "height": result.height,
-            "error": result.error,
+            "view_angle": view_angle,
+            "document": doc_name,
+            "path": path,
         }
+        return CallToolResult(
+            content=[
+                TextContent(type="text", text=json.dumps(metadata, indent=2)),
+                ImageContent(type="image", data=result.data, mimeType="image/png"),
+            ]
+        )
 
     @mcp.tool()
     async def set_view_angle(
