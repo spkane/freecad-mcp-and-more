@@ -425,7 +425,7 @@ _result_ = {
         "solid_count": result_solid_count,
         "errors": [],
     },
-    "warnings": [],
+    "warnings": list(feature_warnings),
     "next_inputs": {
         "feature_name": created_feature.Name,
         "object_name": created_feature.Name,
@@ -433,6 +433,68 @@ _result_ = {
     },
 }
 """
+
+
+_SUBTRACTIVE_RESIDUAL_CHECK = """
+try:
+    import Part as _Part
+
+    _profile_faces = []
+    for _wire in sketch.Shape.Wires:
+        if _wire.isClosed():
+            _profile_faces.append(_Part.Face(_wire))
+    if _profile_faces and feature_shape is not None and not feature_shape.isNull():
+        _sketch_placement = sketch.getGlobalPlacement()
+        _plane_normal = _sketch_placement.Rotation.multVec(FreeCAD.Vector(0, 0, 1))
+        _near_direction = (
+            _plane_normal.negative()
+            if getattr(created_feature, "Reversed", False)
+            else _plane_normal
+        )
+        _probe_depth = float(feature_shape.BoundBox.DiagonalLength) or 1.0
+        _residual_volume = 0.0
+        _residual_depth = 0.0
+        for _profile_face in _profile_faces:
+            _near_prism = _profile_face.extrude(_near_direction * _probe_depth)
+            _residue = feature_shape.common(_near_prism)
+            if _residue.isNull():
+                continue
+            _residual_volume += float(_residue.Volume)
+            for _vertex in _residue.Vertexes:
+                _reach = (_vertex.Point - _sketch_placement.Base).dot(_near_direction)
+                if _reach > _residual_depth:
+                    _residual_depth = _reach
+        _residual_tolerance = max(1e-9, float(feature_shape.Volume) * 1e-9)
+        if _residual_volume > _residual_tolerance:
+            feature_warnings.append(
+                "Cut '%s' left %.6g mm^3 of material in front of its own sketch "
+                "plane, reaching up to %.6g mm past it. A cut that starts at the "
+                "sketch plane cannot remove material lying in front of that plane, "
+                "so the opening keeps a thin web instead of cutting cleanly "
+                "through. This happens when the sketch plane is offset to a curved "
+                "or tapered wall at one height only. Use type='ThroughAll', set "
+                "Reversed to cut the other way, or move the sketch plane clear of "
+                "the solid, then inspect the opening with get_screenshot."
+                % (created_feature.Name, _residual_volume, _residual_depth)
+            )
+except Exception as _residual_error:
+    feature_warnings.append(
+        "Residual-material check did not run for this cut: %s" % (_residual_error,)
+    )
+"""
+
+
+def _subtractive_residual_check() -> str:
+    """Warn when a sketch-driven cut cannot reach its own near side.
+
+    Scoped to linear cuts driven by a sketch profile, where "in front of the
+    sketch plane" is well defined. Advisory only: a cut that is otherwise valid
+    is never rejected for this.
+    """
+    return "\n".join(
+        f"    {line}" if line else ""
+        for line in _SUBTRACTIVE_RESIDUAL_CHECK.splitlines()
+    )
 
 
 def _feature_validation_code(
@@ -1662,6 +1724,7 @@ try:
 
     doc.recompute()
 {_feature_validation_code("pocket", require_material_removal=True)}
+{_subtractive_residual_check()}
 {_feature_result_code()}
     doc.commitTransaction()
 except Exception:

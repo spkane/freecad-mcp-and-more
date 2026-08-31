@@ -1940,3 +1940,110 @@ class TestSymmetricExtrudeCompatibility:
 
         assert len(external_geometry) == 1  # the tempting but wrong answer
         assert sum(len(_s) for _, _s in external_geometry) == 3
+
+
+class TestSubtractiveResidualWarning:
+    """A cut that cannot reach its own near side must say so."""
+
+    @pytest.fixture
+    def mock_mcp(self):
+        mcp = MagicMock()
+        mcp._registered_tools = {}
+
+        def tool_decorator():
+            def wrapper(func):
+                mcp._registered_tools[func.__name__] = func
+                return func
+
+            return wrapper
+
+        mcp.tool = tool_decorator
+        return mcp
+
+    @pytest.fixture
+    def mock_bridge(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def register_tools(self, mock_mcp, mock_bridge):
+        from freecad_mcp.tools.partdesign import register_partdesign_tools
+
+        async def get_bridge():
+            return mock_bridge
+
+        register_partdesign_tools(mock_mcp, get_bridge)
+        return mock_mcp._registered_tools
+
+    async def _generated_code(self, register_tools, mock_bridge, **kwargs):
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={
+                    "name": "Pocket",
+                    "label": "Pocket",
+                    "type_id": "PartDesign::Pocket",
+                },
+                stdout="",
+                stderr="",
+                execution_time_ms=1.0,
+            )
+        )
+        await register_tools["pocket_sketch"](**kwargs)
+        return mock_bridge.execute_python.call_args[0][0]
+
+    @pytest.mark.asyncio
+    async def test_pocket_measures_material_in_front_of_sketch_plane(
+        self, register_tools, mock_bridge
+    ):
+        """The generated pocket must probe its own near side for residue."""
+        code = await self._generated_code(
+            register_tools, mock_bridge, sketch_name="WindowSketch", length=6
+        )
+
+        assert "residual" in code.lower()
+        assert "extrude" in code
+        assert "common(" in code
+        assert "Reversed" in code
+
+    @pytest.mark.asyncio
+    async def test_residual_warning_is_advisory_not_fatal(
+        self, register_tools, mock_bridge
+    ):
+        """The probe must never abort an otherwise valid cut."""
+        code = await self._generated_code(
+            register_tools, mock_bridge, sketch_name="WindowSketch", length=6
+        )
+
+        start = code.index("import Part as _Part")
+        end = code.index("Residual-material check did not run") + 120
+        residual_block = code[start:end]
+
+        assert "except Exception as _residual_error" in residual_block
+        assert "feature_warnings.append" in residual_block
+        assert "raise" not in residual_block
+        assert "VALIDATION_FAILED" not in residual_block
+
+    @pytest.mark.asyncio
+    async def test_warning_names_the_actionable_remedies(
+        self, register_tools, mock_bridge
+    ):
+        """A warning the model cannot act on is not worth emitting."""
+        code = await self._generated_code(
+            register_tools, mock_bridge, sketch_name="WindowSketch", length=6
+        )
+
+        assert "ThroughAll" in code
+        assert "Reversed" in code
+
+    @pytest.mark.asyncio
+    async def test_feature_result_reports_collected_warnings(
+        self, register_tools, mock_bridge
+    ):
+        """Warnings must reach the model through the result contract."""
+        code = await self._generated_code(
+            register_tools, mock_bridge, sketch_name="WindowSketch", length=6
+        )
+
+        assert '"warnings": []' not in code
+        assert '"warnings": list(feature_warnings)' in code
+        assert "feature_warnings = []" in code

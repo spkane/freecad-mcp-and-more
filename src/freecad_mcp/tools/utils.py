@@ -9,6 +9,7 @@ import textwrap
 WORKFLOW_HELPERS = r"""import hashlib
 
 _owned_transaction_id = None
+feature_warnings = []
 
 def _revision_update(digest, value):
     encoded = str(value).encode("utf-8", "backslashreplace")
