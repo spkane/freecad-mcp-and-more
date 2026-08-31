@@ -97,3 +97,36 @@ async def test_screenshot_codegen_frames_geometry_and_restores_camera(bridge):
 
     # One flush before the grab, one after the restore.
     assert code.count("updateGui") >= 2
+
+
+@pytest.mark.asyncio
+async def test_screenshot_codegen_captures_the_requested_document(bridge):
+    """A named document must be the one photographed.
+
+    The bridge resolved ``doc_name`` and then grabbed
+    ``FreeCADGui.ActiveDocument.ActiveView`` regardless, so asking for a
+    document the GUI was not already showing returned a picture of whatever
+    else was open. A benchmark model burned four captures diagnosing this.
+    """
+    captured = _capture_screenshot_code(bridge)
+    bridge.is_gui_available = AsyncMock(return_value=True)
+
+    await bridge.get_screenshot(width=800, height=600, doc_name="Target")
+
+    code = next((c for c in captured if "saveImage" in c), None)
+    assert code is not None, "no generated code performed a saveImage"
+    compile(code, "<generated>", "exec")
+
+    activate = code.find("setActiveDocument")
+    assert activate != -1, "generated code never activates the requested document"
+
+    # The document must be activated before the view is taken, otherwise the
+    # view still belongs to the previously active document.
+    view_lookup = code.index("ActiveView")
+    assert activate < view_lookup, "document activated after the view was resolved"
+    assert activate < code.index("saveImage")
+
+    # Activating a document switches the operator's visible tab; put it back.
+    assert code.count("setActiveDocument") >= 2, (
+        "must restore the previously active document after capture"
+    )

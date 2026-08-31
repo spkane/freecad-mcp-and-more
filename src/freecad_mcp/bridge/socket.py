@@ -698,6 +698,17 @@ if doc is None:
 if not FreeCAD.GuiUp:
     raise RuntimeError("GUI not available")
 
+
+# Act on the document that was asked for, not whichever tab the GUI happens
+# to be showing. Without this, a named document that is not already active
+# targets a different model entirely.
+_previous_doc = (
+    FreeCADGui.ActiveDocument.Document.Name if FreeCADGui.ActiveDocument else None
+)
+if _previous_doc != doc.Name:
+    FreeCADGui.setActiveDocument(doc.Name)
+    FreeCADGui.updateGui()
+
 view = FreeCADGui.ActiveDocument.ActiveView
 if view is None:
     raise ValueError("No active view")
@@ -743,6 +754,11 @@ view.saveImage(temp_path, {width}, {height}, "Current")
 # view, and so zoom/camera tools stay observable across captures.
 view.setCamera(_saved_camera)
 FreeCADGui.updateGui()
+
+# Put the operator's document back; a read-only capture must not switch tabs.
+if _previous_doc is not None and _previous_doc != doc.Name:
+    FreeCADGui.setActiveDocument(_previous_doc)
+    FreeCADGui.updateGui()
 
 with open(temp_path, "rb") as f:
     image_data = base64.b64encode(f.read()).decode("utf-8")
@@ -794,6 +810,17 @@ if doc is None:
 if not FreeCAD.GuiUp:
     _result_ = True
 else:
+
+    # Act on the document that was asked for, not whichever tab the GUI happens
+    # to be showing. Without this, a named document that is not already active
+    # targets a different model entirely.
+    _previous_doc = (
+        FreeCADGui.ActiveDocument.Document.Name if FreeCADGui.ActiveDocument else None
+    )
+    if _previous_doc != doc.Name:
+        FreeCADGui.setActiveDocument(doc.Name)
+        FreeCADGui.updateGui()
+
     view = FreeCADGui.ActiveDocument.ActiveView
     if view is None:
         raise ValueError("No active view")
