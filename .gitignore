@@ -122,3 +122,6 @@ Thumbs.db
 # Local configuration
 .mcp.json
 .claude
+
+# Superpowers SDD scratch (ledger, briefs, review packages)
+.superpowers/
