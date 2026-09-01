@@ -67,7 +67,8 @@ async def _close_document(bridge: XmlRpcBridge, doc_name: str) -> None:
 if {doc_name!r} in FreeCAD.listDocuments():
     FreeCAD.closeDocument({doc_name!r})
 _result_ = True
-"""
+""",
+        transaction=None,
     )
     assert result.success, result.error_traceback
 
@@ -110,7 +111,8 @@ _result_ = {{
     "tip": body.Tip.Name,
     "volume": float(body.Shape.Volume),
 }}
-"""
+""",
+            transaction="Set Up Regression Fixture",
         )
         assert setup.success, setup.error_traceback
 
@@ -136,7 +138,8 @@ _result_ = {{
     "tip": body.Tip.Name,
     "volume": float(body.Shape.Volume),
 }}
-"""
+""",
+            transaction=None,
         )
         assert inspection.success, inspection.error_traceback
         assert inspection.result == {
@@ -243,7 +246,8 @@ async def test_define_variables_reports_each_bad_expression_and_rolls_back(
             f"""
 doc = FreeCAD.newDocument({doc_name!r})
 _result_ = {{"name": doc.Name}}
-"""
+""",
+            transaction="Set Up Regression Fixture",
         )
         assert setup.success, setup.error_traceback
 
@@ -268,7 +272,8 @@ _result_ = {{"name": doc.Name}}
             f"""
 doc = FreeCAD.getDocument({doc_name!r})
 _result_ = {{"variable_set_exists": doc.getObject("Variables") is not None}}
-"""
+""",
+            transaction=None,
         )
         assert inspection.success, inspection.error_traceback
         assert inspection.result == {"variable_set_exists": False}
@@ -342,7 +347,8 @@ _result_ = {{
     "tip": body.Tip.Name,
     "solid_count": len(body.Shape.Solids),
 }}
-"""
+""",
+            transaction="Set Up Regression Fixture",
         )
         assert setup.success, setup.error_traceback
         assert setup.result == {"tip": "Bump", "solid_count": 1}
@@ -366,7 +372,8 @@ _result_ = {{
     "tip": body.Tip.Name,
     "solid_count": len(body.Shape.Solids),
 }}
-"""
+""",
+            transaction=None,
         )
         assert inspection.success, inspection.error_traceback
         assert inspection.result == {"tip": pattern_name, "solid_count": 1}

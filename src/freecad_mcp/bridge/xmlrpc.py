@@ -188,7 +188,7 @@ The FreeCAD Robust MCP Bridge server is not running. To fix this:
                 with self._proxy_lock:
                     if request_cancelled.is_set() or time.perf_counter() >= deadline:
                         return _EXPIRED_REQUEST
-                    return proxy.execute("_result_ = True")
+                    return proxy.execute("_result_ = True", 30000, None)
 
             result = await asyncio.wait_for(
                 loop.run_in_executor(
