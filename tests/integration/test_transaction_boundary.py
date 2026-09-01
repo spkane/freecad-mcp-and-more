@@ -91,12 +91,39 @@ def test_failed_mutation_leaves_no_active_transaction(xmlrpc_proxy) -> None:
         _close_scratch_document(xmlrpc_proxy, doc_name)
 
 
-def test_wedge_survives_document_reopen(xmlrpc_proxy) -> None:
-    """Characterises the bug: an armed transaction is application-scoped.
+def test_successful_mutation_leaves_no_active_transaction(xmlrpc_proxy) -> None:
+    """A committed mutation must not leave an armed transaction for the next call.
 
-    A document-level pending transaction cannot survive close and reopen, so
-    if a leak did survive it, the stuck flag is App.getActiveTransaction().
-    After the fix nothing leaks, so a fresh document mutates cleanly.
+    Document.commitTransaction() does not close the application-level
+    transaction that Document.openTransaction() arms, so before the executor
+    owns the boundary this leaks into the following call.
+    """
+    doc_name = _make_scratch_document(xmlrpc_proxy)
+    try:
+        result = xmlrpc_proxy.execute(
+            f"import FreeCAD\n"
+            f"doc = FreeCAD.getDocument({doc_name!r})\n"
+            f"doc.addObject('App::VarSet', 'Vars')\n"
+            f"doc.recompute()\n"
+            f"_result_ = True\n",
+            30000,
+            "Add Variable Set",
+        )
+        assert result["success"], result.get("error_message")
+
+        # Checked from a separate RPC call, which is where the leak is visible.
+        assert _active_transaction(xmlrpc_proxy) is None
+    finally:
+        _close_scratch_document(xmlrpc_proxy, doc_name)
+
+
+def test_failed_mutation_does_not_leak_across_documents(xmlrpc_proxy) -> None:
+    """A failed mutation must not leave an application-level transaction that
+    blocks work on a different document.
+
+    The conflict check is not document-scoped: a leaked armed transaction
+    blocks any subsequent mutating call, regardless of which document it
+    targets.
     """
     doc_name = _make_scratch_document(xmlrpc_proxy)
     try:
