@@ -15,6 +15,7 @@
 - **Python 3.11 exactly.** Must match FreeCAD's bundled Python; a mismatch causes SIGSEGV on `import FreeCAD`. See `CLAUDE.md`. Do not change `.mise.toml` or `pyproject.toml` Python pins.
 - **No compatibility shim.** `transaction` is a required parameter and a required wire field. A missing or unrecognised field is an error, never a silent `None`.
 - **`persist=True` is mandatory** on every `setActiveTransaction` call. The default auto-closes the transaction when a Gui command stack unwinds, which would close ours mid-call.
+- **Enable `UndoMode` before arming.** A document's `UndoMode` defaults to `0`, and with undo disabled `closeActiveTransaction(abort=True)` silently keeps the mutation rather than rolling it back. Verified live on 2026-09-01. The old per-tool `open_owned_transaction` did this; the executor must too, across every open document.
 - **Never abort a transaction we did not arm.** The pre-flight check refuses and returns an error; it must not call `closeActiveTransaction` on a foreign transaction.
 - **Preserve unrelated working-tree changes.** `.mise.toml`, `pyproject.toml`, `src/freecad_mcp/tools/spreadsheet.py`, `tests/unit/test_tools_spreadsheet.py`, `uv.lock`, and `docs/development/compact-local-coding-agent-research.md` carry in-flight work. Stage files explicitly by path; never `git add -A` or `git commit -a`.
 - **FreeCAD is operator-owned.** Addon changes require reinstall (`just install`) and a FreeCAD restart. These are operator steps — ask, do not run them unprompted.
@@ -348,6 +349,12 @@ In `freecad/RobustMCPBridge/freecad_mcp_bridge/server.py`, replace `_execute_cod
                     ),
                     "error_traceback": None,
                 }
+            # Undo must be ON before arming. A document's UndoMode defaults to 0,
+            # and with undo disabled closeActiveTransaction(abort=True) silently
+            # keeps the mutation instead of rolling it back. Verified live.
+            for open_document in FreeCAD.listDocuments().values():
+                if open_document.UndoMode == 0:
+                    open_document.UndoMode = 1
             FreeCAD.setActiveTransaction(transaction, True)
             armed = True
 
@@ -534,6 +541,11 @@ In `src/freecad_mcp/bridge/embedded.py`, change `_execute_code` to take the name
                         f"{active[0]!r} is already active; refusing to mutate"
                     ),
                 )
+            # See the addon boundary: undo must be ON before arming, or an
+            # abort silently keeps the mutation.
+            for open_document in self._fc_module.listDocuments().values():
+                if open_document.UndoMode == 0:
+                    open_document.UndoMode = 1
             self._fc_module.setActiveTransaction(transaction, True)
             armed = True
 

@@ -302,3 +302,46 @@ on `_xmlrpc_execute`, no `abortActiveTransaction` on error, and no executor-owne
 boundary — remain independently valid. The three-argument tests in
 `tests/integration/test_transaction_boundary.py` fail on arity (not on the
 wedge itself), confirming the protocol change is genuinely absent and required.
+
+### Controller probes through the transaction path
+
+The probe above sent raw Python through `proxy.execute`, which carries no
+`WORKFLOW_HELPERS` and therefore never calls `openTransaction`. Nothing was
+armed, so nothing could leak — it tested the wrong layer. Probing the
+transaction path directly, with every `getActiveTransaction()` check made from a
+*separate* later RPC call:
+
+```text
+baseline active:                                        None
+openTransaction + addObject + commitTransaction  ->     ['Case A Booked', 1]
+openTransaction + no change  + commitTransaction ->     ['Case B Unbooked', 2]
+```
+
+`commitTransaction()` leaves the application-level transaction armed, booked or
+not. A later probe run minutes afterwards still saw `['Case B Unbooked', 2]` as
+its baseline, so a leftover persists rather than clearing quickly. What clears
+them intermittently in a real session is not established; a subsequent
+`setActiveTransaction` replaces the armed entry, which is one route.
+
+Contrast `closeActiveTransaction()`, which the planned boundary uses:
+
+```text
+arm + mutate + closeActiveTransaction(False)   -> active None,  object kept
+arm + mutate + raise + closeActiveTransaction(True)
+                                               -> active None,  object KEPT (!)
+arm + no change + closeActiveTransaction(True) -> active None
+```
+
+It disarms in every case. But note the second line: the abort did **not** roll
+back. The cause is `UndoMode`, which defaults to `0` on a new document:
+
+```text
+default UndoMode of a new doc: 0
+abort with UndoMode = 0  ->  objects after abort: ['Kept', 'RolledBack']
+abort with UndoMode = 1  ->  objects after abort: []
+```
+
+With undo disabled, `closeActiveTransaction(abort=True)` silently keeps the
+mutation. The old per-tool `open_owned_transaction` set `UndoMode = 1` before
+opening; the executor-owned boundary must do the same across every open
+document, or it would report a rollback that never happened.
