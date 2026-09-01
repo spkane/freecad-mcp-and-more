@@ -238,3 +238,26 @@ not blocked by this work.
 Phase 1 changes the system under test. Runs made after it are a new condition
 and are not comparable with Stage D or the local v1/v2 sessions. Frozen archives
 must not be rerun or repaired.
+
+## Probe findings
+
+Probed on 2026-09-01 against FreeCAD headless (instance `aa27beda`), using the
+current two-argument `execute(code, timeout_ms)` protocol.
+
+| Value                                  | Result           |
+| -------------------------------------- | ---------------- |
+| `error_type` of the failed edit        | `TypeError`      |
+| `getActiveTransaction()` after failure | `None` (no leak) |
+| Next mutation succeeded                | `True`           |
+
+**No wedge observed.** Under the current two-argument protocol, a failed
+mutation leaves no active transaction and the next mutation succeeds immediately.
+The severity claim in the spec ("every subsequent mutating call fails with
+`TRANSACTION_CONFLICT` forever") is not reproduced against this FreeCAD version
+and bridge revision.
+
+The structural defects in the spec's Root Cause — missing `transaction` parameter
+on `_xmlrpc_execute`, no `abortActiveTransaction` on error, and no executor-owned
+boundary — remain independently valid. The three-argument tests in
+`tests/integration/test_transaction_boundary.py` fail on arity (not on the
+wedge itself), confirming the protocol change is genuinely absent and required.
