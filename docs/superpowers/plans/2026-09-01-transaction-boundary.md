@@ -19,7 +19,10 @@
 - **Never abort a transaction we did not arm.** The pre-flight check refuses and returns an error; it must not call `closeActiveTransaction` on a foreign transaction.
 - **Preserve unrelated working-tree changes.** `.mise.toml`, `pyproject.toml`, `uv.lock`, and `docs/development/compact-local-coding-agent-research.md` carry in-flight work and must not appear in any commit. Stage files explicitly by path; never `git add -A` or `git commit -a`. (`spreadsheet.py` and `test_tools_spreadsheet.py` were on this list until their in-flight work was committed as `b9eea05`; they are now ordinary files, and Task 3 deletes them.)
 - **FreeCAD is operator-owned.** Addon changes require reinstall (`just install`) and a FreeCAD restart. These are operator steps — ask, do not run them unprompted.
-- **Quality gate:** `just testing::unit`, `just quality::lint`, `just quality::typecheck` must pass before every commit.
+- **Quality gate:** `just testing::unit`, `just quality::lint`, and `uv run pre-commit run mypy --all-files` must pass before every commit.
+- **Do not use `just quality::typecheck` as a completeness gate.** It runs `uv run mypy src`, so it never checks `tests/` — it missed 7 call-site errors in Task 2. Use `uv run pre-commit run mypy --all-files`, which covers the whole tree.
+- **mypy alone is NOT a completeness gate for this protocol change.** It proves the typed `execute_python` call sites and nothing more. Raw `proxy.execute(code)` calls against the XML-RPC proxy are untyped and invisible to it — 16 of them across 7 integration files, plus `XmlRpcBridge.ping`, broke at runtime while mypy reported clean. The real gate is `uv run python -m pytest tests/integration -q --timeout=60` over the WHOLE directory, with headless FreeCAD running.
+- **Two broken tool shims on this machine.** `.venv/bin` carries stale shebangs pointing at a different repo path, so `uv run mypy` fails to spawn and `uv run pytest` resolves to a system PyPy 2.7 that dies on modern annotations. Working routes: `uv run pre-commit run mypy --all-files` and `uv run python -m pytest`.
 
 ---
 
@@ -36,7 +39,7 @@ A separate in-process executor with the identical structure and the identical de
 
 **Tool modules** — `src/freecad_mcp/tools/*.py`
 Task 3 deletes `spreadsheet.py` entirely, so the migration tasks that follow do not touch it.
-111 `execute_python` call sites declare intent. The mutating ones then shed their in-code transaction handling.
+108 `execute_python` call sites declare intent. The mutating ones then shed their in-code transaction handling.
 
 **Helpers** — `src/freecad_mcp/tools/utils.py`
 `WORKFLOW_HELPERS` loses its five transaction functions. `document_revision` and `require_expected_revision` stay — they serve query cursors and stale-revision detection.
@@ -645,9 +648,9 @@ Then delete the now-unused `_LEGACY_EXECUTE_ARITY_FAULT` constant (line 45) and 
 
 `allow_none=True` is already set on both the client proxy (`xmlrpc.py:101`) and the addon server (`server.py:1135`), so `None` crosses the wire unchanged.
 
-- [ ] **Step 7: Declare `transaction=None` at all 111 call sites**
+- [ ] **Step 7: Declare `transaction=None` at all 108 call sites**
 
-Every `execute_python(...)` call in `src/freecad_mcp/tools/` gains `transaction=None`. No behaviour changes: each mutating tool still opens its own in-code transaction, which Tasks 4 to 5 remove one module at a time.
+Every `execute_python(...)` call in `src/freecad_mcp/tools/` gains `transaction=None`. A naive grep reports 111 matches; three are not calls (the `execute_python` tool definition at `execution.py:27` and two docstring examples at `execution.py:56` and `:64`). No behaviour changes: each mutating tool still opens its own in-code transaction, which Tasks 4 to 5 remove one module at a time.
 
 Find them with:
 
@@ -655,12 +658,14 @@ Find them with:
 grep -rn 'execute_python(' src/freecad_mcp/tools/
 ```
 
-Counts per file, as a completeness check: `partdesign.py` 37, `objects.py` 24, `view.py` 12, `spreadsheet.py` 10, `export.py` 7, `draft.py` 6, `variables.py` 4, `validation.py` 4, `execution.py` 4, `macros.py` 2, `documents.py` 1.
+Counts per file, as a completeness check: `partdesign.py` 37, `objects.py` 24, `view.py` 12, `spreadsheet.py` 10, `export.py` 7, `draft.py` 6, `variables.py` 4, `validation.py` 4, `execution.py` 1 (plus 3 non-call matches), `macros.py` 2, `documents.py` 1.
 
 - [ ] **Step 8: Verify with the type checker**
 
-Run: `just quality::typecheck`
+Run: `uv run pre-commit run mypy --all-files`
 Expected: PASS. Because `transaction` is keyword-only with no default, mypy flags any call site that was missed. A clean run is the completeness proof — do not proceed until it passes.
+
+Use this command, not `just quality::typecheck`: that recipe checks only `src/` and will not see call sites under `tests/`, which is exactly how 7 errors were missed the first time.
 
 - [ ] **Step 9: Add live boundary tests for the four executor cases**
 
@@ -873,14 +878,20 @@ git commit -m "feat: move the FreeCAD transaction boundary into the executor"
 
 ---
 
-### Task 3: Remove the Spreadsheet tools
+### Task 3: Remove the dead full-profile modules
 
-The user has decided the Spreadsheet tools are dead. They are legacy full-profile
-only — `register_spreadsheet_tools` is called from `register_all_tools` and never
-from `register_parametric_tools`, so the benchmark has never exposed them.
+Three modules contain **zero** parametric-profile tools, so every tool in them is
+dead code for this project: `spreadsheet.py` (10 tools), `draft.py` (6), and
+`macros.py` (6). They are registered only by `register_all_tools`, never by
+`register_parametric_tools`.
 
-Removing them now shrinks the remaining migration: 10 `execute_python` call sites
-and 6 raw `openTransaction` sites disappear from Task 6's scope.
+The strategy the user chose: delete whole dead modules now, and delete the
+remaining scattered full-profile tools **during** the migration tasks rather than
+upgrading code that is about to die. Tasks 5, 6 and 7 each carry that instruction
+for the module they touch.
+
+Removing these three now shrinks the remaining migration and deletes 2,209 lines
+of source plus 2,708 lines of tests.
 
 The in-flight work on `spreadsheet_bind_property` was preserved as commit
 `b9eea05` before this deletion, so it is recoverable from history if the decision
@@ -888,9 +899,10 @@ is ever reversed.
 
 **Files:**
 
-- Delete: `src/freecad_mcp/tools/spreadsheet.py`, `tests/unit/test_tools_spreadsheet.py`
+- Delete: `src/freecad_mcp/tools/spreadsheet.py`, `src/freecad_mcp/tools/draft.py`, `src/freecad_mcp/tools/macros.py`
+- Delete: `tests/unit/test_tools_spreadsheet.py`, `tests/unit/test_tools_draft.py`, `tests/unit/test_tools_macros.py`
+- Delete: `tests/integration/test_spreadsheet_draft_workflows.py`
 - Modify: `src/freecad_mcp/tools/__init__.py`, `src/freecad_mcp/resources/freecad.py`, `tests/unit/test_parametric_profile.py`
-- Split: `tests/integration/test_spreadsheet_draft_workflows.py` -> `tests/integration/test_draft_workflows.py`
 - Modify: `CLAUDE.md`, `docs/guide/tools.md`, `docs/MCP_TOOLS_REFERENCE.md`
 
 **Interfaces:**
@@ -901,18 +913,22 @@ is ever reversed.
 - [ ] **Step 1: Delete the module and its unit tests**
 
 ```bash
-git rm src/freecad_mcp/tools/spreadsheet.py tests/unit/test_tools_spreadsheet.py
+git rm src/freecad_mcp/tools/spreadsheet.py src/freecad_mcp/tools/draft.py \
+       src/freecad_mcp/tools/macros.py \
+       tests/unit/test_tools_spreadsheet.py tests/unit/test_tools_draft.py \
+       tests/unit/test_tools_macros.py
 ```
 
 - [ ] **Step 2: Unregister it**
 
-In `src/freecad_mcp/tools/__init__.py` remove four things: the
-`- spreadsheet: Legacy full-profile Spreadsheet workbench tools` line from the
-module docstring (line 11), the
-`from freecad_mcp.tools.spreadsheet import register_spreadsheet_tools` import
-(line 29), the `"register_spreadsheet_tools",` entry in `__all__` (line 45), and
-the `register_spreadsheet_tools(mcp, get_bridge_func)` call in
-`register_all_tools` (line 171).
+In `src/freecad_mcp/tools/__init__.py`, for **each** of `spreadsheet`, `draft`
+and `macros`, remove four things: its line from the module docstring, its
+`from freecad_mcp.tools.<mod> import register_<mod>_tools` import, its
+`"register_<mod>_tools",` entry in `__all__`, and its
+`register_<mod>_tools(mcp, get_bridge_func)` call in `register_all_tools`.
+
+Run: `grep -n "spreadsheet\|draft\|macro" src/freecad_mcp/tools/__init__.py`
+Expected: no output.
 
 - [ ] **Step 3: Remove the capabilities catalog entry**
 
@@ -923,24 +939,16 @@ block and nothing else.
 Run: `grep -ci spreadsheet src/freecad_mcp/resources/freecad.py`
 Expected: `0`.
 
-- [ ] **Step 4: Split the integration tests, keeping Draft**
-
-`tests/integration/test_spreadsheet_draft_workflows.py` covers two unrelated
-areas. Keep Draft, drop Spreadsheet.
-
-Delete these classes and all their tests: `TestSpreadsheetWorkflow` (line 147,
-4 tests) and `TestCombinedSpreadsheetDraftWorkflow` (line 1090, 1 test).
-
-Keep `TestDraftShapeStringWorkflow` (line 552, 4 tests) and every module-level
-helper and fixture it uses — including the nested `test_export` (line 92) and
-`test_create_doc` (line 114) helpers, if the Draft tests depend on them. Check
-before deleting either.
-
-Then rename the file:
+- [ ] **Step 4: Delete the spreadsheet/draft integration tests**
 
 ```bash
-git mv tests/integration/test_spreadsheet_draft_workflows.py tests/integration/test_draft_workflows.py
+git rm tests/integration/test_spreadsheet_draft_workflows.py
 ```
+
+An earlier version of this plan said to split this file and keep its four
+`TestDraftShapeStringWorkflow` tests. That is superseded: `draft.py` is being
+deleted too, so the Draft tests have nothing left to cover. All five of them skip
+in this environment anyway ("No suitable font file found in test environment").
 
 - [ ] **Step 5: Update the profile test**
 
@@ -963,7 +971,10 @@ spreadsheets as a CAD concept, not as tools this server provides.
 
 - [ ] **Step 7: Verify nothing references the removed module**
 
-Run: `grep -rn "register_spreadsheet_tools\|tools.spreadsheet\|spreadsheet_create\|spreadsheet_set_cell\|spreadsheet_bind_property" src/ tests/ docs/guide docs/MCP_TOOLS_REFERENCE.md CLAUDE.md`
+Run: `grep -rn "register_spreadsheet_tools\|register_draft_tools\|register_macro_tools\|tools\.spreadsheet\|tools\.draft\|tools\.macros" src/ tests/`
+Expected: no output.
+
+Run: `grep -rni "spreadsheet_\|draft_shapestring\|run_macro\|list_macros\|create_macro" src/ tests/ docs/guide docs/MCP_TOOLS_REFERENCE.md CLAUDE.md`
 Expected: no output.
 
 Incidental references to the FreeCAD *workbench* named Spreadsheet are fine and
@@ -1082,6 +1093,46 @@ git commit -m "refactor: declare variable tool transactions at the executor"
 
 The largest module: 18 `open_owned_transaction` sites and 18 raw `openTransaction` sites.
 
+
+### Delete dead PartDesign tools instead of migrating them
+
+Per the user's decision, do not add `transaction=` to a tool that is not in the
+parametric profile — delete the tool instead. Upgrading dead code is wasted work.
+
+For each module below, KEEP only the listed tools and delete every other
+`@mcp.tool()` function, along with its unit tests and any `PARAMETRIC_TOOL_NAMES`-
+irrelevant helpers it solely used. The keep-lists are exactly
+`PARAMETRIC_TOOL_NAMES` intersected with each module, generated from the source.
+
+**`partdesign.py`** — keep 25 of 50:
+
+```text
+add_sketch_arc, add_sketch_circle, add_sketch_constraint, add_sketch_line, add_sketch_point, add_sketch_rectangle, chamfer_edges, create_constrained_sketch, create_datum_plane, create_hole, create_partdesign_body, create_sketch, delete_sketch_constraint, delete_sketch_geometry, fillet_edges, get_sketch_info, groove_sketch, linear_pattern, loft_sketches, mirrored_feature, pad_sketch, pocket_sketch, polar_pattern, revolution_sketch, toggle_construction
+```
+
+After deleting, confirm the module's remaining tools are exactly its keep-list:
+
+```bash
+python3 - <<'EOF'
+import pathlib, re
+init = pathlib.Path("src/freecad_mcp/tools/__init__.py").read_text()
+names = set(re.findall(r'"([a-z_0-9]+)"',
+            init.split("PARAMETRIC_TOOL_NAMES = frozenset(")[1].split("\n)")[0]))
+for f in sorted(pathlib.Path("src/freecad_mcp/tools").glob("*.py")):
+    tools = [x for x in re.findall(r"async def (\w+)\(", f.read_text())
+             if not x.startswith("_")]
+    extra = [x for x in tools if x not in names]
+    if extra:
+        print(f"{f.name}: still has non-parametric tools: {extra}")
+EOF
+```
+
+Expected once all migration tasks are done: no output.
+
+Removing a tool also means removing its entry from
+`src/freecad_mcp/resources/freecad.py` (the capabilities catalog) and its row in
+`docs/guide/tools.md` and `docs/MCP_TOOLS_REFERENCE.md`.
+
 **Files:**
 
 - Modify: `src/freecad_mcp/tools/partdesign.py`
@@ -1135,6 +1186,70 @@ git commit -m "refactor: declare PartDesign tool transactions at the executor"
 `objects.py` (20 raw sites), `draft.py` (5), `bridge/xmlrpc.py` (3), `validation.py` (1), `view.py` (1). Task 3 deleted `spreadsheet.py`, removing 6 sites that this task originally carried.
 
 `objects.py` includes `edit_object`, `create_object`, and `delete_object` — the three that never had a transaction. They get one here purely by declaring a name; no other change.
+
+
+### Delete dead tools in these modules instead of migrating them
+
+Per the user's decision, do not add `transaction=` to a tool that is not in the
+parametric profile — delete the tool instead. Upgrading dead code is wasted work.
+
+For each module below, KEEP only the listed tools and delete every other
+`@mcp.tool()` function, along with its unit tests and any `PARAMETRIC_TOOL_NAMES`-
+irrelevant helpers it solely used. The keep-lists are exactly
+`PARAMETRIC_TOOL_NAMES` intersected with each module, generated from the source.
+
+**`objects.py`** — keep 4 of 41:
+
+```text
+edit_object, inspect_object, list_objects, query_objects
+```
+
+**`view.py`** — keep 6 of 18:
+
+```text
+fit_all, get_screenshot, redo, set_object_visibility, set_view_angle, undo
+```
+
+**`validation.py`** — keep 2 of 4:
+
+```text
+validate_document, validate_object
+```
+
+**`export.py`** — keep 3 of 7:
+
+```text
+export_step, export_stl, import_step
+```
+
+**`execution.py`** — keep 3 of 5:
+
+```text
+get_connection_status, get_console_output, get_freecad_version
+```
+
+After deleting, confirm the module's remaining tools are exactly its keep-list:
+
+```bash
+python3 - <<'EOF'
+import pathlib, re
+init = pathlib.Path("src/freecad_mcp/tools/__init__.py").read_text()
+names = set(re.findall(r'"([a-z_0-9]+)"',
+            init.split("PARAMETRIC_TOOL_NAMES = frozenset(")[1].split("\n)")[0]))
+for f in sorted(pathlib.Path("src/freecad_mcp/tools").glob("*.py")):
+    tools = [x for x in re.findall(r"async def (\w+)\(", f.read_text())
+             if not x.startswith("_")]
+    extra = [x for x in tools if x not in names]
+    if extra:
+        print(f"{f.name}: still has non-parametric tools: {extra}")
+EOF
+```
+
+Expected once all migration tasks are done: no output.
+
+Removing a tool also means removing its entry from
+`src/freecad_mcp/resources/freecad.py` (the capabilities catalog) and its row in
+`docs/guide/tools.md` and `docs/MCP_TOOLS_REFERENCE.md`.
 
 **Files:**
 
@@ -1206,6 +1321,35 @@ Nothing calls the owned-transaction helpers now. Removing them is what makes the
 
 - Consumes: Tasks 4, 5 and 6 removed every caller.
 - Produces: a `WORKFLOW_HELPERS` containing only revision helpers.
+
+- [ ] **Step 0: Collapse the tool-profile mechanism if nothing full-only remains**
+
+By this point Tasks 3, 5 and 6 should have deleted every non-parametric tool.
+Verify:
+
+```bash
+python3 - <<'EOF'
+import pathlib, re
+init = pathlib.Path("src/freecad_mcp/tools/__init__.py").read_text()
+names = set(re.findall(r'"([a-z_0-9]+)"',
+            init.split("PARAMETRIC_TOOL_NAMES = frozenset(")[1].split("\n)")[0]))
+for f in sorted(pathlib.Path("src/freecad_mcp/tools").glob("*.py")):
+    tools = [x for x in re.findall(r"async def (\w+)\(", f.read_text())
+             if not x.startswith("_")]
+    extra = [x for x in tools if x not in names]
+    if extra:
+        print(f"{f.name}: {extra}")
+EOF
+```
+
+If that prints nothing, `register_all_tools` and `register_parametric_tools` now
+register the same set and the `FREECAD_TOOL_PROFILE` switch is dead weight.
+Report that to the controller with the evidence and **stop** — do not remove the
+profile mechanism on your own initiative. It is a public interface of a published
+package, and whether to drop it is the user's call, not this plan's.
+
+If it prints anything, report which tools remain and why you could not delete
+them, then continue with Step 1.
 
 - [ ] **Step 1: Confirm there are no remaining callers**
 
