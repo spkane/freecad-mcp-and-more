@@ -42,9 +42,6 @@ DEFAULT_XMLRPC_PORT = 9875
 DEFAULT_TIMEOUT = 30.0
 TIMEOUT_GRACE_SECONDS = 1.0
 _EXPIRED_REQUEST = object()
-_LEGACY_EXECUTE_ARITY_FAULT = (
-    "_xmlrpc_execute() takes 2 positional arguments but 3 were given"
-)
 
 
 class XmlRpcBridge(FreecadBridge):
@@ -79,7 +76,6 @@ class XmlRpcBridge(FreecadBridge):
         self._proxy: xmlrpc.client.ServerProxy | None = None
         self._proxy_lock = threading.Lock()
         self._connected = False
-        self._supports_server_timeout: bool | None = None
 
     @property
     def _server_url(self) -> str:
@@ -150,7 +146,6 @@ The FreeCAD Robust MCP Bridge server is not running. To fix this:
         """Close connection to FreeCAD XML-RPC server."""
         self._proxy = None
         self._connected = False
-        self._supports_server_timeout = None
 
     async def is_connected(self) -> bool:
         """Check if bridge is connected to FreeCAD."""
@@ -254,12 +249,17 @@ The FreeCAD Robust MCP Bridge server is not running. To fix this:
         self,
         code: str,
         timeout_ms: int = 30000,
+        *,
+        transaction: str | None,
     ) -> ExecutionResult:
         """Execute Python code in FreeCAD context via XML-RPC.
 
         Args:
             code: Python code to execute.
             timeout_ms: Maximum execution time in milliseconds.
+            transaction: Undo transaction name to arm around this call, or None
+                for a read-only call. Keyword-only and required, so every call
+                site declares whether it mutates.
 
         Returns:
             ExecutionResult with execution outcome.
@@ -291,24 +291,13 @@ The FreeCAD Robust MCP Bridge server is not running. To fix this:
                         or time.perf_counter() >= execution_deadline
                     ):
                         return _EXPIRED_REQUEST
-                    if self._supports_server_timeout is None:
-                        try:
-                            proxy.execute("_result_ = None", 1000)
-                        except xmlrpc.client.Fault as exc:
-                            if _LEGACY_EXECUTE_ARITY_FAULT not in exc.faultString:
-                                raise
-                            self._supports_server_timeout = False
-                        else:
-                            self._supports_server_timeout = True
                     if (
                         request_cancelled.is_set()
                         or time.perf_counter() >= execution_deadline
                     ):
                         return _EXPIRED_REQUEST
                     request_started.set()
-                    if self._supports_server_timeout:
-                        return proxy.execute(code, timeout_ms)
-                    return proxy.execute(code)
+                    return proxy.execute(code, timeout_ms, transaction)
 
             result = await asyncio.wait_for(
                 loop.run_in_executor(
@@ -386,7 +375,8 @@ for doc in FreeCAD.listDocuments().values():
         "is_modified": doc.Modified if hasattr(doc, "Modified") else False,
         "active_object": doc.ActiveObject.Name if doc.ActiveObject else None,
     })
-"""
+""",
+            transaction=None,
         )
 
         if result.success and result.result:
@@ -409,7 +399,8 @@ if doc:
     }
 else:
     _result_ = None
-"""
+""",
+            transaction=None,
         )
 
         if result.success and result.result:
@@ -432,7 +423,8 @@ _result_ = {{
     "objects": [],
     "is_modified": False,
 }}
-"""
+""",
+            transaction=None,
         )
 
         if result.success and result.result:
@@ -457,7 +449,8 @@ _result_ = {{
     "objects": [obj.Name for obj in doc.Objects],
     "is_modified": doc.Modified if hasattr(doc, "Modified") else False,
 }}
-"""
+""",
+            transaction=None,
         )
 
         if result.success and result.result:
@@ -487,7 +480,7 @@ if not save_path:
 doc.saveAs(save_path)
 _result_ = save_path
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return result.result
@@ -509,7 +502,7 @@ if doc_name is None:
 FreeCAD.closeDocument(doc_name)
 _result_ = True
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if not result.success:
             error_msg = result.error_traceback or "Failed to close document"
@@ -540,7 +533,7 @@ for obj in doc.Objects:
 
 _result_ = objects
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return [ObjectInfo(**obj) for obj in result.result]
@@ -595,7 +588,7 @@ _result_ = {{
     "visibility": obj.ViewObject.Visibility if hasattr(obj, "ViewObject") and obj.ViewObject else True,
 }}
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return ObjectInfo(**result.result)
@@ -642,7 +635,7 @@ _result_ = {{
     "parents": [p.Name for p in obj.InList] if hasattr(obj, "InList") else [],
 }}
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return ObjectInfo(**result.result)
@@ -689,7 +682,7 @@ _result_ = {{
     "parents": [p.Name for p in obj.InList] if hasattr(obj, "InList") else [],
 }}
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return ObjectInfo(**result.result)
@@ -723,7 +716,7 @@ except Exception:
 
 _result_ = True
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if not result.success:
             error_msg = result.error_traceback or "Failed to delete object"
@@ -832,7 +825,7 @@ _result_ = {{
     "height": {height},
 }}
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return ScreenshotResult(
@@ -904,7 +897,7 @@ else:
 
     _result_ = True
 """
-        await self.execute_python(code)
+        await self.execute_python(code, transaction=None)
 
     # =========================================================================
     # Macros
@@ -954,7 +947,7 @@ for source, path in macro_paths:
 
 _result_ = macros
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return [MacroInfo(**m) for m in result.result]
@@ -1002,7 +995,7 @@ with open(macro_file, "r") as f:
 exec(macro_code)
 _result_ = True
 """
-        return await self.execute_python(code)
+        return await self.execute_python(code, transaction=None)
 
     async def create_macro(
         self,
@@ -1042,7 +1035,7 @@ _result_ = {{
     "is_system": False,
 }}
 """
-        result = await self.execute_python(create_code)
+        result = await self.execute_python(create_code, transaction=None)
 
         if result.success and result.result:
             return MacroInfo(**result.result)
@@ -1084,7 +1077,7 @@ else:
 
 _result_ = workbenches
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return [WorkbenchInfo(**wb) for wb in result.result]
@@ -1102,7 +1095,7 @@ if FreeCAD.GuiUp:
 else:
     _result_ = True  # Silently succeed in headless mode
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if not result.success:
             error_msg = result.error_traceback or "Failed to activate workbench"
@@ -1124,7 +1117,7 @@ _result_ = {
     "gui_available": FreeCAD.GuiUp,
 }
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return result.result
@@ -1139,7 +1132,7 @@ _result_ = {
 
     async def is_gui_available(self) -> bool:
         """Check if FreeCAD GUI is available."""
-        result = await self.execute_python("_result_ = FreeCAD.GuiUp")
+        result = await self.execute_python("_result_ = FreeCAD.GuiUp", transaction=None)
         return bool(result.success and result.result)
 
     # =========================================================================
@@ -1162,7 +1155,7 @@ if hasattr(FreeCAD, 'Console'):
 
 _result_ = output_lines
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return result.result

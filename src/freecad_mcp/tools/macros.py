@@ -149,7 +149,7 @@ _result_ = {{
     "path": macro_file,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Read macro failed")
@@ -187,7 +187,7 @@ _result_ = {{
     "path": macro_file,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Delete macro failed")

@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import sys
 import threading
-import time
 import xmlrpc.client
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
@@ -24,7 +23,7 @@ def _clear_workbench_server() -> None:
 
 @pytest.mark.asyncio
 async def test_xmlrpc_client_forwards_execution_timeout() -> None:
-    """The client should pass its requested timeout to the bridge server."""
+    """The client should pass its requested timeout and transaction to the bridge server."""
     bridge = XmlRpcBridge()
     proxy = MagicMock()
     proxy.execute.return_value = {
@@ -36,81 +35,14 @@ async def test_xmlrpc_client_forwards_execution_timeout() -> None:
     }
     bridge._proxy = proxy
 
-    result = await bridge.execute_python("_result_ = 'ok'", timeout_ms=120000)
+    result = await bridge.execute_python(
+        "_result_ = 'ok'", timeout_ms=120000, transaction=None
+    )
 
     assert result.success is True
     assert proxy.execute.call_args_list == [
-        call("_result_ = None", 1000),
-        call("_result_ = 'ok'", 120000),
+        call("_result_ = 'ok'", 120000, None),
     ]
-
-
-@pytest.mark.asyncio
-async def test_xmlrpc_client_falls_back_for_legacy_server() -> None:
-    """A one-argument legacy server should remain usable."""
-    bridge = XmlRpcBridge()
-    proxy = MagicMock()
-    proxy.execute.side_effect = [
-        xmlrpc.client.Fault(
-            1,
-            "_xmlrpc_execute() takes 2 positional arguments but 3 were given",
-        ),
-        {"success": True, "result": "ok"},
-    ]
-    bridge._proxy = proxy
-
-    result = await bridge.execute_python("_result_ = 'ok'", timeout_ms=120000)
-
-    assert result.success is True
-    assert proxy.execute.call_args_list == [
-        call("_result_ = None", 1000),
-        call("_result_ = 'ok'"),
-    ]
-
-
-@pytest.mark.asyncio
-async def test_user_fault_does_not_retry_mutating_code() -> None:
-    """A user-code arity error must not trigger legacy protocol fallback."""
-    bridge = XmlRpcBridge()
-    proxy = MagicMock()
-    proxy.execute.side_effect = [
-        {"success": True, "result": None},
-        xmlrpc.client.Fault(1, "worker() takes 1 positional argument but 2 were given"),
-    ]
-    bridge._proxy = proxy
-
-    result = await bridge.execute_python("mutate_then_fail()", timeout_ms=120000)
-
-    assert result.success is False
-    assert result.error_type == "Fault"
-    assert proxy.execute.call_args_list == [
-        call("_result_ = None", 1000),
-        call("mutate_then_fail()", 120000),
-    ]
-
-
-@pytest.mark.asyncio
-async def test_legacy_retry_does_not_start_after_execution_deadline() -> None:
-    """A delayed arity fault must not permit an expired legacy retry."""
-    bridge = XmlRpcBridge()
-    proxy = MagicMock()
-
-    def delayed_fault(*args: object) -> dict[str, object]:
-        if len(args) == 2:
-            time.sleep(0.02)
-            raise xmlrpc.client.Fault(
-                1, "_xmlrpc_execute() takes 2 positional arguments but 3 were given"
-            )
-        return {"success": True}
-
-    proxy.execute.side_effect = delayed_fault
-    bridge._proxy = proxy
-
-    result = await bridge.execute_python("long_job()", timeout_ms=10)
-
-    assert result.error_type == "TimeoutError"
-    assert result.execution_continues is False
-    assert proxy.execute.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -127,7 +59,9 @@ async def test_xmlrpc_client_preserves_server_error_message() -> None:
     }
     bridge._proxy = proxy
 
-    result = await bridge.execute_python("slow_operation()", timeout_ms=120000)
+    result = await bridge.execute_python(
+        "slow_operation()", timeout_ms=120000, transaction=None
+    )
 
     assert result.success is False
     assert result.error_type == "TimeoutError"
@@ -141,7 +75,6 @@ async def test_xmlrpc_client_preserves_transport_exception_details() -> None:
     bridge = XmlRpcBridge()
     proxy = MagicMock()
     proxy.execute.side_effect = [
-        {"success": True, "result": None},
         TypeError("cannot marshal FreeCAD property wrapper"),
     ]
     bridge._proxy = proxy
@@ -210,9 +143,13 @@ async def test_timed_out_client_call_does_not_reuse_busy_proxy() -> None:
     proxy.execute.side_effect = blocking_execute
     bridge._proxy = proxy
 
-    first = asyncio.create_task(bridge.execute_python("first()", timeout_ms=100))
+    first = asyncio.create_task(
+        bridge.execute_python("first()", timeout_ms=100, transaction=None)
+    )
     assert await asyncio.to_thread(entered.wait, 1)
-    second = asyncio.create_task(bridge.execute_python("second()", timeout_ms=10))
+    second = asyncio.create_task(
+        bridge.execute_python("second()", timeout_ms=10, transaction=None)
+    )
     await asyncio.sleep(0.05)
     release.set()
     first_result, second_result = await asyncio.gather(first, second)
@@ -220,7 +157,8 @@ async def test_timed_out_client_call_does_not_reuse_busy_proxy() -> None:
     await asyncio.sleep(0.05)
     assert first_result.success is True
     assert second_result.error_type == "TimeoutError"
-    assert proxy.execute.call_count == 2
+    # With no probe call, only the first request reaches proxy.execute.
+    assert proxy.execute.call_count == 1
 
 
 def test_xmlrpc_server_uses_requested_execution_timeout() -> None:
@@ -237,10 +175,10 @@ def test_xmlrpc_server_uses_requested_execution_timeout() -> None:
         plugin = server.FreecadMCPPlugin()
         execute = MagicMock(return_value={"success": True})
         with patch.object(plugin, "_execute_via_queue", execute):
-            result = plugin._xmlrpc_execute("_result_ = True", 120000)
+            result = plugin._xmlrpc_execute("_result_ = True", 120000, None)
 
     assert result == {"success": True}
-    execute.assert_called_once_with("_result_ = True", 120000)
+    execute.assert_called_once_with("_result_ = True", 120000, None)
 
 
 def test_xmlrpc_server_sanitizes_unrepresentable_results() -> None:
@@ -271,7 +209,7 @@ def test_xmlrpc_server_sanitizes_unrepresentable_results() -> None:
             }
         )
         with patch.object(plugin, "_execute_via_queue", execute):
-            result = plugin._xmlrpc_execute("_result_ = True")
+            result = plugin._xmlrpc_execute("_result_ = True", 30000, None)
         payload = xmlrpc.client.dumps((result,), allow_none=True)
         decoded, _ = xmlrpc.client.loads(payload)
 
@@ -299,7 +237,7 @@ def test_timed_out_queued_request_is_not_executed_later() -> None:
         plugin._running = True
         execute = MagicMock(return_value={"success": True})
         with patch.object(plugin, "_execute_code_sync", execute):
-            result = plugin._execute_via_queue("_result_ = True", timeout_ms=1)
+            result = plugin._execute_via_queue("_result_ = True", 1, None)
             plugin._process_queue()
 
     assert result["error_type"] == "TimeoutError"
@@ -321,8 +259,8 @@ def test_started_request_blocks_follow_up_execution() -> None:
         request = server.ExecutionRequest("first()")
         assert request.start_if_pending()
         with patch.object(server, "ExecutionRequest", return_value=request):
-            first = plugin._execute_via_queue("first()", timeout_ms=1)
-            second = plugin._execute_via_queue("second()", timeout_ms=1)
+            first = plugin._execute_via_queue("first()", 1, None)
+            second = plugin._execute_via_queue("second()", 1, None)
 
     assert first["execution_continues"] is True
     assert second["error_type"] == "BusyError"

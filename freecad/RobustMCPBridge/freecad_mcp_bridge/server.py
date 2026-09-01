@@ -84,12 +84,12 @@ def _get_shiboken_delete() -> Any:
     with contextlib.suppress(ImportError):
         import shiboken6
 
-        return shiboken6.delete
+        return shiboken6.delete  # type: ignore[attr-defined]
 
     with contextlib.suppress(ImportError):
         import shiboken2
 
-        return shiboken2.delete
+        return shiboken2.delete  # type: ignore[attr-defined]
 
     return None
 
@@ -188,6 +188,7 @@ class ExecutionRequest:
         code: str,
         timeout_ms: int = 30000,
         request_id: str | None = None,
+        transaction: str | None = None,
     ) -> None:
         """Initialize execution request.
 
@@ -195,10 +196,12 @@ class ExecutionRequest:
             code: Python code to execute.
             timeout_ms: Execution timeout in milliseconds.
             request_id: Optional request ID for tracking.
+            transaction: Undo transaction name to arm, or None for read-only.
         """
         self.code = code
         self.timeout_ms = timeout_ms
         self.request_id = request_id
+        self.transaction = transaction
         self.result: dict[str, Any] | None = None
         self.completed = threading.Event()
         self._state_lock = threading.Lock()
@@ -804,7 +807,7 @@ class FreecadMCPPlugin:
                 continue
 
             try:
-                result = self._execute_code_sync(request.code)
+                result = self._execute_code_sync(request.code, request.transaction)
                 request.result = result
                 self._record_request()
             except Exception as e:
@@ -822,18 +825,20 @@ class FreecadMCPPlugin:
     def _execute_via_queue(
         self,
         code: str,
-        timeout_ms: int = 30000,
+        timeout_ms: int,
+        transaction: str | None,
     ) -> dict[str, Any]:
         """Execute code via the queue system for thread safety.
 
         Args:
             code: Python code to execute.
             timeout_ms: Execution timeout in milliseconds.
+            transaction: Undo transaction name to arm, or None for read-only.
 
         Returns:
             Execution result dictionary.
         """
-        request = ExecutionRequest(code, timeout_ms)
+        request = ExecutionRequest(code, timeout_ms, transaction=transaction)
         if not self._claim_execution_request(request):
             return {
                 "success": False,
@@ -866,11 +871,13 @@ class FreecadMCPPlugin:
                 "execution_continues": not cancelled,
             }
 
-    def _execute_code_sync(self, code: str) -> dict[str, Any]:
+    def _execute_code_sync(self, code: str, transaction: str | None) -> dict[str, Any]:
         """Execute Python code synchronously (call on main thread only).
 
         Args:
             code: Python code to execute.
+            transaction: Name of the undo transaction to arm for this call, or
+                None for a read-only call that must not open one.
 
         Returns:
             Execution result dictionary.
@@ -889,32 +896,64 @@ class FreecadMCPPlugin:
             exec_globals["FreeCADGui"] = FreeCADGui
             exec_globals["Gui"] = FreeCADGui
 
+        armed = False
+        if transaction is not None and FREECAD_AVAILABLE:
+            active = FreeCAD.getActiveTransaction()
+            if isinstance(active, tuple | list) and len(active) > 1 and active[1]:
+                return {
+                    "success": False,
+                    "result": None,
+                    "stdout": "",
+                    "stderr": "",
+                    "execution_time_ms": 0.0,
+                    "error_type": "TransactionConflict",
+                    "error_message": (
+                        "TRANSACTION_CONFLICT: application transaction "
+                        f"{active[0]!r} is already active; refusing to mutate"
+                    ),
+                    "error_traceback": None,
+                }
+            # Undo must be ON before arming. A document's UndoMode defaults to 0,
+            # and with undo disabled closeActiveTransaction(abort=True) silently
+            # keeps the mutation instead of rolling it back. Verified live.
+            for open_document in FreeCAD.listDocuments().values():
+                if getattr(open_document, "UndoMode", 1) == 0:
+                    open_document.UndoMode = 1  # type: ignore[attr-defined]
+            FreeCAD.setActiveTransaction(transaction, True)
+            armed = True
+
+        succeeded = False
         try:
-            with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
-                compiled = compile(code, "<mcp>", "exec")
-                exec(compiled, exec_globals)  # noqa: S102
+            try:
+                with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
+                    compiled = compile(code, "<mcp>", "exec")
+                    exec(compiled, exec_globals)  # noqa: S102
 
-            elapsed = (time.perf_counter() - start) * 1000
-            return {
-                "success": True,
-                "result": exec_globals.get("_result_"),
-                "stdout": stdout_capture.getvalue(),
-                "stderr": stderr_capture.getvalue(),
-                "execution_time_ms": elapsed,
-            }
+                succeeded = True
+                elapsed = (time.perf_counter() - start) * 1000
+                return {
+                    "success": True,
+                    "result": exec_globals.get("_result_"),
+                    "stdout": stdout_capture.getvalue(),
+                    "stderr": stderr_capture.getvalue(),
+                    "execution_time_ms": elapsed,
+                }
 
-        except Exception as e:
-            elapsed = (time.perf_counter() - start) * 1000
-            return {
-                "success": False,
-                "result": None,
-                "stdout": stdout_capture.getvalue(),
-                "stderr": stderr_capture.getvalue(),
-                "execution_time_ms": elapsed,
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-                "error_traceback": traceback.format_exc(),
-            }
+            except Exception as e:
+                elapsed = (time.perf_counter() - start) * 1000
+                return {
+                    "success": False,
+                    "result": None,
+                    "stdout": stdout_capture.getvalue(),
+                    "stderr": stderr_capture.getvalue(),
+                    "execution_time_ms": elapsed,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "error_traceback": traceback.format_exc(),
+                }
+        finally:
+            if armed:
+                FreeCAD.closeActiveTransaction(not succeeded)
 
     # =========================================================================
     # Socket Server (JSON-RPC 2.0)
@@ -1033,14 +1072,24 @@ class FreecadMCPPlugin:
 
         # Handle execute via queue
         if method == "execute":
+            if "transaction" not in params:
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32602,
+                        "message": "Invalid params",
+                        "data": "Missing required parameter: transaction",
+                    },
+                }
             code = params.get("code", "")
             timeout_ms = params.get("timeout_ms", 30000)
+            transaction = params["transaction"]
 
-            # Execute via queue for thread safety
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
                 None,
-                lambda: self._execute_via_queue(code, timeout_ms),
+                lambda: self._execute_via_queue(code, timeout_ms, transaction),
             )
 
             return {
@@ -1187,18 +1236,22 @@ class FreecadMCPPlugin:
     def _xmlrpc_execute(
         self,
         code: str,
-        timeout_ms: int = 30000,
+        timeout_ms: int,
+        transaction: str | None,
     ) -> dict[str, Any]:
-        """XML-RPC execute handler (neka-nat compatible).
+        """XML-RPC execute handler.
 
         Args:
             code: Python code to execute.
             timeout_ms: Maximum time to wait for execution in milliseconds.
+            transaction: Undo transaction name to arm, or None for read-only.
 
         Returns:
             Execution result dictionary.
         """
-        return _xmlrpc_safe_value(self._execute_via_queue(code, timeout_ms))
+        return _xmlrpc_safe_value(
+            self._execute_via_queue(code, timeout_ms, transaction)
+        )
 
     # Valid view types for screenshot capture
     _VALID_VIEW_TYPES = frozenset(
@@ -1297,7 +1350,7 @@ else:
                     "height": {height},
                 }}
 """
-        result = self._execute_via_queue(code, 30000)
+        result = self._execute_via_queue(code, 30000, None)
         if result.get("success") and result.get("result"):
             return result["result"]
         return {"success": False, "error": result.get("error_message", "Unknown error")}

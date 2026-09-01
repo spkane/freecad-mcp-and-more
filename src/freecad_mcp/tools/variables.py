@@ -325,7 +325,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Define variables failed")
@@ -408,7 +408,7 @@ _result_ = {{
     "variables": serialized,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Get variables failed")
@@ -589,7 +589,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Bind expressions failed")
@@ -688,7 +688,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Set expression failed")

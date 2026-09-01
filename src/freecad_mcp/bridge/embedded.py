@@ -94,12 +94,17 @@ class EmbeddedBridge(FreecadBridge):
         self,
         code: str,
         timeout_ms: int = 30000,
+        *,
+        transaction: str | None,
     ) -> ExecutionResult:
         """Execute Python code in FreeCAD context.
 
         Args:
             code: Python code to execute.
             timeout_ms: Maximum execution time in milliseconds.
+            transaction: Undo transaction name to arm around this call, or None
+                for a read-only call. Keyword-only and required, so every call
+                site declares whether it mutates.
 
         Returns:
             ExecutionResult with execution outcome.
@@ -121,7 +126,7 @@ class EmbeddedBridge(FreecadBridge):
             result = await asyncio.wait_for(
                 loop.run_in_executor(
                     self._executor,
-                    lambda: self._execute_code(code),
+                    lambda: self._execute_code(code, transaction),
                 ),
                 timeout=timeout_ms / 1000,
             )
@@ -138,7 +143,7 @@ class EmbeddedBridge(FreecadBridge):
 
         return result
 
-    def _execute_code(self, code: str) -> ExecutionResult:
+    def _execute_code(self, code: str, transaction: str | None) -> ExecutionResult:
         """Execute code synchronously (runs in thread pool)."""
         start = time.perf_counter()
         stdout_capture = io.StringIO()
@@ -160,35 +165,65 @@ class EmbeddedBridge(FreecadBridge):
         except ImportError:
             pass
 
+        armed = False
+        if transaction is not None:
+            active = self._fc_module.getActiveTransaction()
+            if isinstance(active, tuple | list) and len(active) > 1 and active[1]:
+                return ExecutionResult(
+                    success=False,
+                    result=None,
+                    stdout="",
+                    stderr="",
+                    execution_time_ms=0.0,
+                    error_type="TransactionConflict",
+                    error_traceback=(
+                        "TRANSACTION_CONFLICT: application transaction "
+                        f"{active[0]!r} is already active; refusing to mutate"
+                    ),
+                )
+            # See the addon boundary: undo must be ON before arming, or an
+            # abort silently keeps the mutation.
+            for open_document in self._fc_module.listDocuments().values():
+                if open_document.UndoMode == 0:
+                    open_document.UndoMode = 1
+            self._fc_module.setActiveTransaction(transaction, True)
+            armed = True
+
+        succeeded = False
         try:
-            with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
-                compiled = compile(code, "<mcp>", "exec")
-                exec(compiled, exec_globals)  # noqa: S102
+            try:
+                with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
+                    compiled = compile(code, "<mcp>", "exec")
+                    exec(compiled, exec_globals)  # noqa: S102
 
-            elapsed = (time.perf_counter() - start) * 1000
+                succeeded = True
+                elapsed = (time.perf_counter() - start) * 1000
 
-            return ExecutionResult(
-                success=True,
-                result=exec_globals.get("_result_"),
-                stdout=stdout_capture.getvalue(),
-                stderr=stderr_capture.getvalue(),
-                execution_time_ms=elapsed,
-            )
+                return ExecutionResult(
+                    success=True,
+                    result=exec_globals.get("_result_"),
+                    stdout=stdout_capture.getvalue(),
+                    stderr=stderr_capture.getvalue(),
+                    execution_time_ms=elapsed,
+                )
 
-        except Exception as e:
-            import traceback
+            except Exception as e:
+                import traceback
 
-            elapsed = (time.perf_counter() - start) * 1000
+                elapsed = (time.perf_counter() - start) * 1000
 
-            return ExecutionResult(
-                success=False,
-                result=None,
-                stdout=stdout_capture.getvalue(),
-                stderr=stderr_capture.getvalue(),
-                execution_time_ms=elapsed,
-                error_type=type(e).__name__,
-                error_traceback=traceback.format_exc(),
-            )
+                return ExecutionResult(
+                    success=False,
+                    result=None,
+                    stdout=stdout_capture.getvalue(),
+                    stderr=stderr_capture.getvalue(),
+                    execution_time_ms=elapsed,
+                    error_type=type(e).__name__,
+                    error_traceback=traceback.format_exc(),
+                )
+        finally:
+            if armed:
+                self._fc_module.closeActiveTransaction(not succeeded)
 
     async def get_documents(self) -> list[DocumentInfo]:
         """Get list of open documents."""
@@ -203,7 +238,8 @@ for doc in FreeCAD.listDocuments().values():
         "is_modified": doc.Modified if hasattr(doc, "Modified") else False,
         "label": doc.Label,
     })
-"""
+""",
+            transaction=None,
         )
 
         if result.success and result.result:
@@ -225,7 +261,8 @@ if doc:
     }
 else:
     _result_ = None
-"""
+""",
+            transaction=None,
         )
 
         if result.success and result.result:
@@ -275,7 +312,8 @@ _result_ = {{
     "shape_info": shape_info,
     "children": [c.Name for c in obj.OutList] if hasattr(obj, "OutList") else [],
 }}
-"""
+""",
+            transaction=None,
         )
 
         if result.success and result.result:
@@ -307,7 +345,8 @@ _result_ = {
     "python_version": sys.version,
     "gui_available": hasattr(FreeCAD, "GuiUp") and FreeCAD.GuiUp,
 }
-"""
+""",
+            transaction=None,
         )
 
         if result.success and result.result:
@@ -324,7 +363,8 @@ _result_ = {
     async def is_gui_available(self) -> bool:
         """Check if GUI is available."""
         result = await self.execute_python(
-            "_result_ = hasattr(FreeCAD, 'GuiUp') and FreeCAD.GuiUp"
+            "_result_ = hasattr(FreeCAD, 'GuiUp') and FreeCAD.GuiUp",
+            transaction=None,
         )
         return bool(result.success and result.result)
 
@@ -342,7 +382,7 @@ _result_ = {
             raise ConnectionError(msg)
 
         start = time.perf_counter()
-        result = await self.execute_python("_result_ = True")
+        result = await self.execute_python("_result_ = True", transaction=None)
         elapsed = (time.perf_counter() - start) * 1000
 
         if not result.success:
@@ -411,7 +451,8 @@ _result_ = {{
     "objects": [],
     "is_modified": False,
 }}
-"""
+""",
+            transaction=None,
         )
 
         if result.success and result.result:
@@ -447,7 +488,8 @@ _result_ = {{
     "objects": [obj.Name for obj in doc.Objects],
     "is_modified": doc.Modified if hasattr(doc, "Modified") else False,
 }}
-"""
+""",
+            transaction=None,
         )
 
         if result.success and result.result:
@@ -486,7 +528,7 @@ doc.saveAs(save_path)
 _result_ = save_path
 """
 
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return result.result
@@ -512,7 +554,7 @@ if doc_name is None:
 FreeCAD.closeDocument(doc_name)
 _result_ = True
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if not result.success:
             error_msg = result.error_traceback or "Failed to close document"
@@ -550,7 +592,7 @@ for obj in doc.Objects:
 
 _result_ = objects
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return [ObjectInfo(**obj) for obj in result.result]
@@ -598,7 +640,7 @@ _result_ = {{
     "parents": [p.Name for p in obj.InList] if hasattr(obj, "InList") else [],
 }}
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return ObjectInfo(**result.result)
@@ -650,7 +692,7 @@ _result_ = {{
     "parents": [p.Name for p in obj.InList] if hasattr(obj, "InList") else [],
 }}
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return ObjectInfo(**result.result)
@@ -684,7 +726,7 @@ if obj is None:
 doc.removeObject({obj_name!r})
 _result_ = True
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if not result.success:
             error_msg = result.error_traceback or "Failed to delete object"
@@ -807,7 +849,7 @@ _result_ = {{
     "height": {height},
 }}
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return ScreenshotResult(
@@ -884,7 +926,7 @@ elif view_type == "Right":
 
 _result_ = True
 """
-        await self.execute_python(code)
+        await self.execute_python(code, transaction=None)
 
     # =========================================================================
     # Macros
@@ -980,7 +1022,7 @@ _result_ = True
             args_setup = "\n".join(f"{k} = {v!r}" for k, v in args.items())
             macro_code = args_setup + "\n" + macro_code
 
-        return await self.execute_python(macro_code)
+        return await self.execute_python(macro_code, transaction=None)
 
     async def create_macro(
         self,
@@ -1069,7 +1111,7 @@ for name in FreeCADGui.listWorkbenches():
 
 _result_ = workbenches
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result:
             return [WorkbenchInfo(**wb) for wb in result.result]
@@ -1096,7 +1138,7 @@ try:
 except Exception as e:
     raise ValueError(f"Failed to activate workbench: {{e}}")
 """
-        result = await self.execute_python(code)
+        result = await self.execute_python(code, transaction=None)
 
         if not result.success:
             error_msg = result.error_traceback or "Failed to activate workbench"

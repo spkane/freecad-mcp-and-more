@@ -292,7 +292,7 @@ _result_ = {{
     "truncated": next_offset < len(matched),
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Query objects failed")
@@ -801,7 +801,7 @@ _result_ = {{
     "type_id": result.TypeId,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Boolean operation failed")
@@ -866,7 +866,7 @@ _result_ = {{
     "rotation": list(obj.Placement.Rotation.toEuler()),
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Set placement failed")
@@ -945,7 +945,7 @@ _result_ = {{
     "type_id": result.TypeId,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Scale operation failed")
@@ -1021,7 +1021,7 @@ _result_ = {{
     "rotation": list(obj.Placement.Rotation.toEuler()),
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Rotate operation failed")
@@ -1096,7 +1096,7 @@ _result_ = {{
     "type_id": copy_obj.TypeId,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Copy operation failed")
@@ -1178,7 +1178,7 @@ _result_ = {{
     "type_id": result.TypeId,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Mirror operation failed")
@@ -1215,7 +1215,7 @@ else:
             "sub_elements": list(s.SubElementNames) if s.SubElementNames else [],
         }})
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         return []
@@ -1262,7 +1262,7 @@ else:
 
     _result_ = {{"success": True, "selected_count": count}}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Set selection failed")
@@ -1286,7 +1286,7 @@ else:
     FreeCADGui.Selection.clearSelection()
     _result_ = {"success": True}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Clear selection failed")
@@ -1350,7 +1350,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Create line failed")
@@ -1591,7 +1591,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Shell operation failed")
@@ -1656,7 +1656,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "3D offset failed")
@@ -1734,7 +1734,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Slice operation failed")
@@ -1843,7 +1843,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Make compound failed")
@@ -1908,7 +1908,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Explode compound failed")
@@ -1980,7 +1980,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Fuse all failed")
@@ -2049,7 +2049,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Common all failed")
@@ -2126,7 +2126,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Make wire failed")
@@ -2194,7 +2194,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Make face failed")
@@ -2258,7 +2258,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Extrude shape failed")
@@ -2331,7 +2331,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Revolve shape failed")
@@ -2415,7 +2415,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Part loft failed")
@@ -2501,7 +2501,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Part sweep failed")

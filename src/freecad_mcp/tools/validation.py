@@ -204,7 +204,7 @@ else:
             "warnings": warnings
         }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         return {
@@ -396,7 +396,7 @@ else:
         "summary": summary
     }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         return {
@@ -545,7 +545,7 @@ else:
             "validation_after": validation_after
         }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         return {
@@ -732,7 +732,7 @@ else:
         "message": message
     }}
 """
-        result = await bridge.execute_python(wrapper_code)
+        result = await bridge.execute_python(wrapper_code, transaction=None)
         if result.success and result.result:
             return result.result
         return {

@@ -332,7 +332,7 @@ else:
         else:
             _result_ = {{"success": False, "error": "Object has no ViewObject"}}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         return {
@@ -381,7 +381,7 @@ else:
         else:
             _result_ = {{"success": False, "error": "Object has no ViewObject"}}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         return {
@@ -433,7 +433,7 @@ else:
         else:
             _result_ = {{"success": False, "error": "Object has no ViewObject"}}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         return {
@@ -479,7 +479,7 @@ else:
             view.zoomIn()
         _result_ = {{"success": True}}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         return {
@@ -525,7 +525,7 @@ else:
             view.zoomOut()
         _result_ = {{"success": True}}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         return {
@@ -585,7 +585,7 @@ else:
 
         _result_ = {{"success": True}}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         return {
@@ -617,7 +617,7 @@ elif doc.UndoCount > 0:
 else:
     _result_ = {{"success": False, "can_undo": False, "error": "Nothing to undo"}}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         return {
@@ -650,7 +650,7 @@ elif doc.RedoCount > 0:
 else:
     _result_ = {{"success": False, "can_redo": False, "error": "Nothing to redo"}}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         return {
@@ -685,7 +685,7 @@ else:
         "undo_names": list(doc.UndoNames) if hasattr(doc, "UndoNames") else [],
     }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         return {
@@ -737,7 +737,7 @@ except Exception as e:
 
 _result_ = parts
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         return []
@@ -823,7 +823,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         return {
@@ -883,7 +883,7 @@ else:
 
     _result_ = {{"success": True, "touch_count": touch_count}}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         return {

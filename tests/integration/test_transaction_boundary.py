@@ -9,7 +9,7 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
-def _active_transaction(proxy) -> object:
+def _active_transaction(proxy) -> list[object] | None:
     """Return FreeCAD's active application transaction, or None."""
     result = proxy.execute(
         "import FreeCAD\n"
@@ -19,7 +19,7 @@ def _active_transaction(proxy) -> object:
         None,
     )
     assert result["success"], result.get("error_message")
-    return result["result"]
+    return result["result"]  # type: ignore[return-value]
 
 
 def _make_scratch_document(proxy) -> str:
@@ -160,3 +160,126 @@ def test_armed_but_unbooked_transaction_closes_cleanly(xmlrpc_proxy) -> None:
     assert not result["success"]
 
     assert _active_transaction(xmlrpc_proxy) is None
+
+
+def test_successful_mutation_commits(xmlrpc_proxy) -> None:
+    """A mutating call commits and leaves an undoable step behind."""
+    doc_name = _make_scratch_document(xmlrpc_proxy)
+    try:
+        result = xmlrpc_proxy.execute(
+            f"import FreeCAD\n"
+            f"doc = FreeCAD.getDocument({doc_name!r})\n"
+            f"doc.addObject('App::VarSet', 'Vars')\n"
+            f"doc.recompute()\n"
+            f"_result_ = doc.UndoCount\n",
+            30000,
+            "Add Variable Set",
+        )
+        assert result["success"], result.get("error_message")
+        assert _active_transaction(xmlrpc_proxy) is None
+
+        names = xmlrpc_proxy.execute(
+            f"import FreeCAD\n_result_ = FreeCAD.getDocument({doc_name!r}).UndoNames\n",
+            30000,
+            None,
+        )
+        assert "Add Variable Set" in names["result"]
+    finally:
+        _close_scratch_document(xmlrpc_proxy, doc_name)
+
+
+def test_failed_mutation_rolls_back(xmlrpc_proxy) -> None:
+    """An exception after a real mutation must roll that mutation back."""
+    doc_name = _make_scratch_document(xmlrpc_proxy)
+    try:
+        result = xmlrpc_proxy.execute(
+            f"import FreeCAD\n"
+            f"doc = FreeCAD.getDocument({doc_name!r})\n"
+            f"doc.addObject('App::VarSet', 'ShouldNotSurvive')\n"
+            f"raise ValueError('fail after mutating')\n",
+            30000,
+            "Add Variable Set",
+        )
+        assert not result["success"]
+        assert _active_transaction(xmlrpc_proxy) is None
+
+        objects = xmlrpc_proxy.execute(
+            f"import FreeCAD\n"
+            f"_result_ = [o.Name for o in FreeCAD.getDocument({doc_name!r}).Objects]\n",
+            30000,
+            None,
+        )
+        assert "ShouldNotSurvive" not in objects["result"]
+    finally:
+        _close_scratch_document(xmlrpc_proxy, doc_name)
+
+
+def test_readonly_call_opens_no_transaction(xmlrpc_proxy) -> None:
+    """transaction=None must not create an undo step."""
+    doc_name = _make_scratch_document(xmlrpc_proxy)
+    try:
+        before = xmlrpc_proxy.execute(
+            f"import FreeCAD\n_result_ = FreeCAD.getDocument({doc_name!r}).UndoCount\n",
+            30000,
+            None,
+        )["result"]
+
+        xmlrpc_proxy.execute(
+            f"import FreeCAD\n"
+            f"_result_ = len(FreeCAD.getDocument({doc_name!r}).Objects)\n",
+            30000,
+            None,
+        )
+
+        after = xmlrpc_proxy.execute(
+            f"import FreeCAD\n_result_ = FreeCAD.getDocument({doc_name!r}).UndoCount\n",
+            30000,
+            None,
+        )["result"]
+
+        assert after == before
+        assert _active_transaction(xmlrpc_proxy) is None
+    finally:
+        _close_scratch_document(xmlrpc_proxy, doc_name)
+
+
+def test_foreign_transaction_is_refused_and_left_intact(xmlrpc_proxy) -> None:
+    """We refuse to mutate under a transaction we did not arm, and never close it."""
+    doc_name = _make_scratch_document(xmlrpc_proxy)
+    try:
+        # Stand in for the operator opening a transaction in the GUI.
+        xmlrpc_proxy.execute(
+            "import FreeCAD\n"
+            "FreeCAD.setActiveTransaction('Operator Edit', True)\n"
+            "_result_ = True\n",
+            30000,
+            None,
+        )
+        active_before = _active_transaction(xmlrpc_proxy)
+        assert active_before is not None
+        assert active_before[0] == "Operator Edit"
+
+        refused = xmlrpc_proxy.execute(
+            f"import FreeCAD\n"
+            f"FreeCAD.getDocument({doc_name!r}).addObject('App::VarSet', 'Nope')\n"
+            f"_result_ = True\n",
+            30000,
+            "Add Variable Set",
+        )
+        assert not refused["success"]
+        assert "TRANSACTION_CONFLICT" in (refused.get("error_message") or "")
+
+        # The operator's transaction must still be exactly where it was.
+        active_after = _active_transaction(xmlrpc_proxy)
+        assert active_after is not None
+        assert active_after[0] == "Operator Edit"
+    finally:
+        xmlrpc_proxy.execute(
+            "import FreeCAD\n"
+            "if FreeCAD.getActiveTransaction():\n"
+            "    FreeCAD.closeActiveTransaction(True)\n"
+            "_result_ = True\n",
+            30000,
+            None,
+        )
+        _close_scratch_document(xmlrpc_proxy, doc_name)

@@ -70,7 +70,7 @@ def register_execution_tools(
                 ''')
         """
         bridge = await get_bridge()
-        result = await bridge.execute_python(code, timeout_ms)
+        result = await bridge.execute_python(code, timeout_ms, transaction=None)
         return {
             "success": result.success,
             "result": result.result,

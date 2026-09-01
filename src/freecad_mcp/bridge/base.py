@@ -306,6 +306,8 @@ class FreecadBridge(ABC):
         self,
         code: str,
         timeout_ms: int = 30000,
+        *,
+        transaction: str | None,
     ) -> ExecutionResult:
         """Execute Python code in FreeCAD context.
 
@@ -315,6 +317,9 @@ class FreecadBridge(ABC):
         Args:
             code: Python code to execute.
             timeout_ms: Maximum execution time in milliseconds.
+            transaction: Undo transaction name to arm around this call, or None
+                for a read-only call. Keyword-only and required, so every call
+                site declares whether it mutates.
 
         Returns:
             ExecutionResult with success status, output, and any errors.

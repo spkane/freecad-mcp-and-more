@@ -199,7 +199,7 @@ if doc is None:
 doc.recompute()
 _result_ = True
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         return {
             "success": result.success,
             "error": result.error_traceback if not result.success else None,

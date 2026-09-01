@@ -833,7 +833,7 @@ _result_ = {{
     "support": str(sketch.AttachmentSupport) if hasattr(sketch, "AttachmentSupport") else None,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Create sketch failed")
@@ -1432,7 +1432,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(
@@ -1511,7 +1511,7 @@ _result_ = {{
     "geometry_count": sketch.GeometryCount,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Add rectangle failed")
@@ -1563,7 +1563,7 @@ _result_ = {{
     "geometry_count": sketch.GeometryCount,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Add circle failed")
@@ -1650,7 +1650,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Pad failed")
@@ -1732,7 +1732,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Pocket failed")
@@ -1842,7 +1842,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Fillet failed")
@@ -1952,7 +1952,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Chamfer failed")
@@ -2060,7 +2060,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Revolution failed")
@@ -2168,7 +2168,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Groove failed")
@@ -2283,7 +2283,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Hole creation failed")
@@ -2371,7 +2371,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Linear pattern failed")
@@ -2459,7 +2459,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Polar pattern failed")
@@ -2542,7 +2542,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Mirrored feature failed")
@@ -2604,7 +2604,7 @@ _result_ = {{
     "geometry_count": sketch.GeometryCount,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Add line failed")
@@ -2670,7 +2670,7 @@ _result_ = {{
     "geometry_count": sketch.GeometryCount,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Add arc failed")
@@ -2722,7 +2722,7 @@ _result_ = {{
     "geometry_count": sketch.GeometryCount,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Add point failed")
@@ -2815,7 +2815,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Loft failed")
@@ -2910,7 +2910,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Sweep failed")
@@ -3057,7 +3057,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Create datum plane failed")
@@ -3120,7 +3120,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Create datum line failed")
@@ -3188,7 +3188,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Create datum point failed")
@@ -3282,7 +3282,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Draft feature failed")
@@ -3358,7 +3358,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Thickness feature failed")
@@ -3445,7 +3445,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Subtractive loft failed")
@@ -3537,7 +3537,7 @@ except Exception:
     doc.recompute()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Subtractive pipe failed")
@@ -3597,7 +3597,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Add sketch ellipse failed")
@@ -3677,7 +3677,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Add sketch polygon failed")
@@ -3786,7 +3786,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Add sketch slot failed")
@@ -3849,7 +3849,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Add sketch B-spline failed")
@@ -4010,7 +4010,7 @@ except Exception:
     abort_owned_transaction(doc)
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Add constraint failed")
@@ -4399,7 +4399,7 @@ except Exception:
     abort_owned_transaction(doc)
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Fix sketch point failed")
@@ -4458,7 +4458,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Add external geometry failed")
@@ -4504,7 +4504,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Delete sketch geometry failed")
@@ -4550,7 +4550,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Delete sketch constraint failed")
@@ -4685,7 +4685,7 @@ _result_ = {{
     "degrees_of_freedom": degrees_of_freedom,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Get sketch info failed")
@@ -4738,7 +4738,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "Toggle construction failed")

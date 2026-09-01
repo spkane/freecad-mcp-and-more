@@ -92,7 +92,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(result.error_traceback or "Failed to create spreadsheet")
@@ -179,7 +179,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(result.error_traceback or "Failed to set cell")
@@ -265,7 +265,7 @@ _result_ = {{
     "alias": alias,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(result.error_traceback or "Failed to get cell")
@@ -343,7 +343,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(result.error_traceback or "Failed to set alias")
@@ -410,7 +410,7 @@ _result_ = {{
     "count": len(aliases),
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(result.error_traceback or "Failed to get aliases")
@@ -480,7 +480,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(result.error_traceback or "Failed to clear cell")
@@ -578,7 +578,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(result.error_traceback or "Failed to bind property")
@@ -683,7 +683,7 @@ _result_ = {{
     "cells": cells,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(result.error_traceback or "Failed to get cell range")
@@ -798,7 +798,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(result.error_traceback or "Failed to import CSV")
@@ -952,7 +952,7 @@ else:
         "truncated": truncated,
     }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(result.error_traceback or "Failed to export CSV")

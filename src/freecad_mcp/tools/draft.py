@@ -207,7 +207,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(result.error_traceback or "Failed to create ShapeString")
@@ -289,7 +289,7 @@ _result_ = {
     "directories": searched_dirs,
 }
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(result.error_traceback or "Failed to list fonts")
@@ -436,7 +436,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(
@@ -552,7 +552,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(
@@ -781,7 +781,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(result.error_traceback or "Failed to create text on surface")
@@ -914,7 +914,7 @@ except Exception:
     doc.abortTransaction()
     raise
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success and result.result:
             return result.result
         raise ValueError(result.error_traceback or "Failed to extrude ShapeString")

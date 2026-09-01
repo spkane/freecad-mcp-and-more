@@ -36,7 +36,7 @@ class TestEmbeddedBridge:
         """execute_python should return error when not connected."""
         bridge = EmbeddedBridge()
 
-        result = await bridge.execute_python("x = 1")
+        result = await bridge.execute_python("x = 1", transaction=None)
 
         assert result.success is False
         assert result.error_type == "ConnectionError"
@@ -72,7 +72,7 @@ class TestEmbeddedBridgeCodeExecution:
         bridge._fc_module = mock_freecad
         bridge._connected = True
 
-        result = await bridge.execute_python("_result_ = 1 + 1")
+        result = await bridge.execute_python("_result_ = 1 + 1", transaction=None)
 
         assert result.success is True
         assert result.result == 2
@@ -84,7 +84,7 @@ class TestEmbeddedBridgeCodeExecution:
         bridge._fc_module = mock_freecad
         bridge._connected = True
 
-        result = await bridge.execute_python("print('hello')")
+        result = await bridge.execute_python("print('hello')", transaction=None)
 
         assert result.success is True
         assert "hello" in result.stdout
@@ -96,7 +96,9 @@ class TestEmbeddedBridgeCodeExecution:
         bridge._fc_module = mock_freecad
         bridge._connected = True
 
-        result = await bridge.execute_python("raise ValueError('test error')")
+        result = await bridge.execute_python(
+            "raise ValueError('test error')", transaction=None
+        )
 
         assert result.success is False
         assert result.error_type == "ValueError"
@@ -110,7 +112,7 @@ class TestEmbeddedBridgeCodeExecution:
         bridge._fc_module = mock_freecad
         bridge._connected = True
 
-        result = await bridge.execute_python("def bad syntax")
+        result = await bridge.execute_python("def bad syntax", transaction=None)
 
         assert result.success is False
         assert result.error_type == "SyntaxError"
@@ -151,3 +153,32 @@ class TestEmbeddedBridgeDocuments:
 
         # Since we're not mocking exec properly, we expect empty
         assert isinstance(result, list)
+
+
+def test_embedded_boundary_aborts_on_failure() -> None:
+    """Pins the embedded bridge's copy of the executor boundary."""
+
+    class _FakeFreeCAD:
+        def __init__(self) -> None:
+            self.closed: list[bool] = []
+
+        def getActiveTransaction(self) -> tuple[str, int] | None:
+            return None
+
+        def setActiveTransaction(self, name: str, persist: bool = False) -> int:
+            assert persist is True
+            return 1
+
+        def closeActiveTransaction(self, abort: bool = False) -> None:
+            self.closed.append(abort)
+
+        def listDocuments(self) -> dict:
+            return {}
+
+    fake = _FakeFreeCAD()
+    bridge = EmbeddedBridge()
+    bridge._fc_module = fake
+    bridge._connected = True
+
+    assert not bridge._execute_code("raise ValueError('x')", "Pad Sketch").success
+    assert fake.closed == [True]

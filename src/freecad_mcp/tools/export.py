@@ -94,7 +94,7 @@ _result_ = {{
     "object_count": len(objects),
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "STEP export failed")
@@ -156,7 +156,7 @@ _result_ = {{
     "object_count": len(objects),
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "STL export failed")
@@ -220,7 +220,7 @@ _result_ = {{
     "object_count": len(objects),
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "3MF export failed")
@@ -281,7 +281,7 @@ _result_ = {{
     "object_count": len(objects),
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "OBJ export failed")
@@ -331,7 +331,7 @@ _result_ = {{
     "object_count": len(objects),
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "IGES export failed")
@@ -381,7 +381,7 @@ _result_ = {{
     "objects": new_objects,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "STEP import failed")
@@ -428,7 +428,7 @@ _result_ = {{
     "object": mesh_obj.Name,
 }}
 """
-        result = await bridge.execute_python(code)
+        result = await bridge.execute_python(code, transaction=None)
         if result.success:
             return result.result
         raise ValueError(result.error_traceback or "STL import failed")

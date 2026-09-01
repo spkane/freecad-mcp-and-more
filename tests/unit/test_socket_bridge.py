@@ -56,7 +56,7 @@ class TestSocketBridge:
         """execute_python should return error when not connected."""
         bridge = SocketBridge()
 
-        result = await bridge.execute_python("x = 1")
+        result = await bridge.execute_python("x = 1", transaction=None)
 
         assert result.success is False
         assert result.error_type == "ConnectionError"
