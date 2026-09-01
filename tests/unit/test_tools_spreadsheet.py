@@ -720,6 +720,38 @@ class TestSpreadsheetTools:
         assert result["target_object"] == "Box"
 
     @pytest.mark.asyncio
+    async def test_spreadsheet_bind_property_accepts_constraint_expression_path(
+        self, register_tools: RegisteredTools, mock_bridge: AsyncMock
+    ) -> None:
+        """Bindings should support sketch constraints, not only Python attributes."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={
+                    "success": True,
+                    "expression": "Params.TowerHeight",
+                    "target_object": "TowerSketch",
+                    "target_property": "Constraints[8]",
+                },
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        bind_property = register_tools["spreadsheet_bind_property"]
+        await bind_property(
+            spreadsheet_name="Params",
+            alias="TowerHeight",
+            target_object="TowerSketch",
+            target_property="Constraints[8]",
+        )
+
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "hasattr(target, prop)" not in code
+        assert "target.setExpression(prop, expression)" in code
+
+    @pytest.mark.asyncio
     async def test_spreadsheet_bind_property_alias_not_found(
         self, register_tools: RegisteredTools, mock_bridge: AsyncMock
     ) -> None:

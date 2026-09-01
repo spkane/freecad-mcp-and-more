@@ -503,7 +503,8 @@ except Exception:
             spreadsheet_name: Name of the spreadsheet object.
             alias: Cell alias to bind (the cell must have an alias set).
             target_object: Name of the object to modify.
-            target_property: Property name to bind (e.g., "Length", "Width").
+            target_property: Expression path to bind, such as "Length" or
+                "Constraints[8]" for a dimensional sketch constraint.
             doc_name: Document containing the objects. Uses active if None.
 
         Returns:
@@ -518,7 +519,6 @@ except Exception:
             ValueError: If the spreadsheet object is not found.
             ValueError: If the target object is not found.
             ValueError: If the alias does not exist on the spreadsheet.
-            ValueError: If the target property does not exist.
             ValueError: If binding the expression fails.
 
         Example:
@@ -555,9 +555,8 @@ try:
 except Exception as e:
     raise ValueError(f"Alias not found: {{alias!r}}") from e
 
-# Verify the property exists on target
-if not hasattr(target, prop):
-    raise ValueError(f"Property not found on target: {{prop!r}}")
+if not prop:
+    raise ValueError("target_property must not be empty")
 
 # Wrap in transaction for undo support
 doc.openTransaction("Bind Property to Spreadsheet")
