@@ -10,25 +10,26 @@ forces models to reach for `edit_object`.
 
 ## Problem
 
-A single failed tool call can wedge a FreeCAD session permanently. Every
-subsequent mutating call fails with `TRANSACTION_CONFLICT`, and no sequence of
-tool calls available to the model can recover.
+`TRANSACTION_CONFLICT` is the single largest error class the FreeCAD MCP server
+produces. Across three local qwen3 runs it is 18 of 36 errors. Every one of them
+occurred in a single-call step, so overlapping parallel mutation is not the
+cause: the server conflicts with itself.
 
-Observed in `logs/freecad-mcp-local-fresh.jsonl` (qwen3, 84 calls, 75 minutes):
+In `logs/freecad-mcp-local-fresh.jsonl` (qwen3, 84 calls, 75 minutes), 13 of the
+50 calls after call 34 failed this way, in clusters of up to three consecutive
+calls, with 34 successes interleaved.
 
-```text
-33     define_variables   ok
-34 ERR edit_object        TypeError: type must be 'Matrix' or 'Placement', not dict
-35 ERR set_expression     TRANSACTION_CONFLICT
-...    every mutating call from here on fails
-50/51  close_document / open_document   does not clear it
-72/73  close_document / open_document   does not clear it
-```
+### Correction to an earlier reading of this trace
 
-Calls 34-84 are 51 of the session's 84 calls, roughly 45 minutes, spent against
-a document that could not be mutated again. Across three local runs,
-`TRANSACTION_CONFLICT` is 18 of 36 errors. All 36 occurred in single-call steps,
-so overlapping parallel mutation is not the cause.
+An earlier draft of this document described the failure as a permanent wedge:
+one bad call leaving the session unable to mutate ever again. **That was wrong**,
+and the live probe in `## Probe findings` is what caught it. The conflicts are
+intermittent, not terminal, and `edit_object` at call 34 was a coincidence of
+timing rather than the trigger. The corrected mechanism is below and is verified
+live rather than inferred from the trace.
+
+The cost is real but smaller than first claimed: a recurring self-inflicted error
+class that the model cannot diagnose or clear, not a lost session.
 
 ## FreeCAD's transaction model
 
@@ -67,42 +68,82 @@ same ID and undo together.
 
 ## Root cause
 
-Three independent defects compose into an unrecoverable state.
+Verified live against FreeCAD 1.1 headless on 2026-09-01. Three RPC calls, each
+checking `App.getActiveTransaction()` from a *separate* later call:
+
+```text
+baseline active:                                        None
+openTransaction + addObject + commitTransaction  ->     ['Case A Booked', 1]
+openTransaction + no change  + commitTransaction ->     ['Case B Unbooked', 2]
+```
+
+**`Document.commitTransaction()` does not close the application-level
+transaction.** Because `Document.openTransaction(name)` is a facade over
+`App.setActiveTransaction(name)`, committing the document's transaction leaves
+the application's armed and active — visible to the *next* RPC call, whether or
+not any document booked it.
+
+That is the whole defect. Every mutating tool does:
+
+```python
+open_owned_transaction(doc, "Define Variables")   # arms an app transaction
+try:
+    ...
+    doc.commitTransaction()                       # does NOT disarm it
+```
+
+and every mutating tool begins by refusing to start when one is already active:
+
+```python
+if has_open_transaction(document):
+    raise RuntimeError("TRANSACTION_CONFLICT: Document already has a pending transaction")
+```
+
+So a successful tool call can leave the next one to fail. FreeCAD does clear the
+armed transaction on its own shortly afterwards, which is exactly why the errors
+come in short clusters rather than permanently.
+
+Two further defects make it worse and unrecoverable from the model's side:
 
 **1. Transaction state cannot survive a call.** The addon builds a fresh
 `exec_globals` for every execution (`server.py:880`), so `WORKFLOW_HELPERS` is
-re-executed and `_owned_transaction_id = None` on every call. An application
-transaction left open by call N is, from call N+1's view, permanently a
-stranger's: `has_open_transaction()` sees it and raises, while
-`abort_owned_transaction()` compares the live ID against `None` and declines to
-close it. No later call can clear it. This is structural, not policy.
-`bridge/embedded.py:_execute_code` has the same defect.
+re-executed and `_owned_transaction_id = None` on every call. A transaction left
+armed by call N is, from call N+1's view, a stranger's: `abort_owned_transaction`
+compares the live ID against `None` and declines to close it. The model has no
+tool that can clear the state — it can only retry until FreeCAD clears it
+itself. `bridge/embedded.py:_execute_code` has the same defect.
 
 **2. The conflict check is not document-scoped.** `has_open_transaction()`
 returns true if any application transaction is active, regardless of which
-document it concerns. One leak wedges every document in the application.
+document it concerns. A leftover from one document blocks mutations on every
+other.
 
-This is why `close_document` + `open_document` did not help. A document-level
-pending transaction cannot survive reopening from disk, so the stuck flag is
-provably `App.getActiveTransaction()`.
+### A separate, real, but non-triggering defect
 
-**3. Some mutators never opted in.** `create_object`, `edit_object`, and
-`delete_object` mutate in the *bridge* layer (`bridge/socket.py:611`) with no
-transaction at all. `bridge/xmlrpc.py:670` calls a raw `openTransaction` with no
-abort on failure.
+`create_object`, `edit_object`, and `delete_object` mutate in the *bridge* layer
+(`bridge/socket.py:611`) with no transaction at all; `bridge/xmlrpc.py:670` uses
+a raw `openTransaction` with no abort on failure. The probe confirms these do
+**not** cause the conflicts — an untransacted mutation arms nothing, so it leaks
+nothing.
 
-This is a layering artifact, not an oversight. The owned-transaction discipline
-arrived in `6d9fc30` and was applied to the new typed tools, which generate
-their mutations at the *tool* layer where `WORKFLOW_HELPERS` is injected. That
-commit touched `tools/objects.py` and `tools/utils.py` but not
-`bridge/socket.py`. The legacy trio dates from the initial commit and has never
-been transactional.
+They are still worth fixing: their changes are not undoable, which is a
+correctness gap of its own. This is a layering artifact rather than an oversight.
+The owned-transaction discipline arrived in `6d9fc30` and was applied to the new
+typed tools, which generate mutations at the *tool* layer where
+`WORKFLOW_HELPERS` is injected; that commit touched `tools/objects.py` and
+`tools/utils.py` but not `bridge/socket.py`.
 
 The parametric profile excludes `create_object` and `delete_object` but keeps
-`edit_object`, because the typed surface has no generic property setter.
-`set_expression` and `bind_expressions` bind expressions; `define_variables`
-works on the VarSet. Nothing sets a plain literal property value. That gap is
-what call 34 fell into, and it is the subject of Phase 2.
+`edit_object`, because the typed surface has no generic property setter. Nothing
+sets a plain literal property value. That gap is the subject of Phase 2.
+
+### Why the planned fix addresses this
+
+The executor-owned boundary calls `closeActiveTransaction()` in a `finally` on
+every armed call. Unlike `commitTransaction()`, that call disarms the
+application-level transaction unconditionally — booked or not, success or
+failure. No call can leave state behind for the next one, so the conflict class
+disappears rather than becoming rarer.
 
 ## Phase 1: make the API safe
 
