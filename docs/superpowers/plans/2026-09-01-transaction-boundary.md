@@ -17,7 +17,7 @@
 - **`persist=True` is mandatory** on every `setActiveTransaction` call. The default auto-closes the transaction when a Gui command stack unwinds, which would close ours mid-call.
 - **Enable `UndoMode` before arming.** A document's `UndoMode` defaults to `0`, and with undo disabled `closeActiveTransaction(abort=True)` silently keeps the mutation rather than rolling it back. Verified live on 2026-09-01. The old per-tool `open_owned_transaction` did this; the executor must too, across every open document.
 - **Never abort a transaction we did not arm.** The pre-flight check refuses and returns an error; it must not call `closeActiveTransaction` on a foreign transaction.
-- **Preserve unrelated working-tree changes.** `.mise.toml`, `pyproject.toml`, `src/freecad_mcp/tools/spreadsheet.py`, `tests/unit/test_tools_spreadsheet.py`, `uv.lock`, and `docs/development/compact-local-coding-agent-research.md` carry in-flight work. Stage files explicitly by path; never `git add -A` or `git commit -a`.
+- **Preserve unrelated working-tree changes.** `.mise.toml`, `pyproject.toml`, `uv.lock`, and `docs/development/compact-local-coding-agent-research.md` carry in-flight work and must not appear in any commit. Stage files explicitly by path; never `git add -A` or `git commit -a`. (`spreadsheet.py` and `test_tools_spreadsheet.py` were on this list until their in-flight work was committed as `b9eea05`; they are now ordinary files, and Task 3 deletes them.)
 - **FreeCAD is operator-owned.** Addon changes require reinstall (`just install`) and a FreeCAD restart. These are operator steps — ask, do not run them unprompted.
 - **Quality gate:** `just testing::unit`, `just quality::lint`, `just quality::typecheck` must pass before every commit.
 
@@ -35,6 +35,7 @@ A separate in-process executor with the identical structure and the identical de
 `execute_python` gains a required `transaction` parameter. `base.py` defines the contract; the other three implement it and put the field on the wire.
 
 **Tool modules** — `src/freecad_mcp/tools/*.py`
+Task 3 deletes `spreadsheet.py` entirely, so the migration tasks that follow do not touch it.
 111 `execute_python` call sites declare intent. The mutating ones then shed their in-code transaction handling.
 
 **Helpers** — `src/freecad_mcp/tools/utils.py`
@@ -298,7 +299,7 @@ Addon and embedded executors gain the boundary. Every `execute_python` call site
 **Interfaces:**
 
 - Consumes: nothing from earlier tasks.
-- Produces: `execute_python(code: str, timeout_ms: int = 30000, *, transaction: str | None) -> ExecutionResult` on all four bridges. Tasks 3, 4 and 5 pass a real name here instead of `None`.
+- Produces: `execute_python(code: str, timeout_ms: int = 30000, *, transaction: str | None) -> ExecutionResult` on all four bridges. Tasks 4, 5 and 6 pass a real name here instead of `None`.
 
 - [ ] **Step 1: Add the boundary to the addon executor**
 
@@ -646,7 +647,7 @@ Then delete the now-unused `_LEGACY_EXECUTE_ARITY_FAULT` constant (line 45) and 
 
 - [ ] **Step 7: Declare `transaction=None` at all 111 call sites**
 
-Every `execute_python(...)` call in `src/freecad_mcp/tools/` gains `transaction=None`. No behaviour changes: each mutating tool still opens its own in-code transaction, which Tasks 3 to 5 remove one module at a time.
+Every `execute_python(...)` call in `src/freecad_mcp/tools/` gains `transaction=None`. No behaviour changes: each mutating tool still opens its own in-code transaction, which Tasks 4 to 5 remove one module at a time.
 
 Find them with:
 
@@ -872,7 +873,124 @@ git commit -m "feat: move the FreeCAD transaction boundary into the executor"
 
 ---
 
-### Task 3: Migrate `variables.py` to the executor boundary
+### Task 3: Remove the Spreadsheet tools
+
+The user has decided the Spreadsheet tools are dead. They are legacy full-profile
+only — `register_spreadsheet_tools` is called from `register_all_tools` and never
+from `register_parametric_tools`, so the benchmark has never exposed them.
+
+Removing them now shrinks the remaining migration: 10 `execute_python` call sites
+and 6 raw `openTransaction` sites disappear from Task 6's scope.
+
+The in-flight work on `spreadsheet_bind_property` was preserved as commit
+`b9eea05` before this deletion, so it is recoverable from history if the decision
+is ever reversed.
+
+**Files:**
+
+- Delete: `src/freecad_mcp/tools/spreadsheet.py`, `tests/unit/test_tools_spreadsheet.py`
+- Modify: `src/freecad_mcp/tools/__init__.py`, `src/freecad_mcp/resources/freecad.py`, `tests/unit/test_parametric_profile.py`
+- Split: `tests/integration/test_spreadsheet_draft_workflows.py` -> `tests/integration/test_draft_workflows.py`
+- Modify: `CLAUDE.md`, `docs/guide/tools.md`, `docs/MCP_TOOLS_REFERENCE.md`
+
+**Interfaces:**
+
+- Consumes: nothing from Task 2 beyond a clean tree.
+- Produces: a `tools/` package with no spreadsheet module. Task 6 no longer touches `spreadsheet.py`.
+
+- [ ] **Step 1: Delete the module and its unit tests**
+
+```bash
+git rm src/freecad_mcp/tools/spreadsheet.py tests/unit/test_tools_spreadsheet.py
+```
+
+- [ ] **Step 2: Unregister it**
+
+In `src/freecad_mcp/tools/__init__.py` remove four things: the
+`- spreadsheet: Legacy full-profile Spreadsheet workbench tools` line from the
+module docstring (line 11), the
+`from freecad_mcp.tools.spreadsheet import register_spreadsheet_tools` import
+(line 29), the `"register_spreadsheet_tools",` entry in `__all__` (line 45), and
+the `register_spreadsheet_tools(mcp, get_bridge_func)` call in
+`register_all_tools` (line 171).
+
+- [ ] **Step 3: Remove the capabilities catalog entry**
+
+`src/freecad_mcp/resources/freecad.py` has 26 spreadsheet references, forming one
+`"spreadsheet": {...}` category block starting at line 1087. Remove that whole
+block and nothing else.
+
+Run: `grep -ci spreadsheet src/freecad_mcp/resources/freecad.py`
+Expected: `0`.
+
+- [ ] **Step 4: Split the integration tests, keeping Draft**
+
+`tests/integration/test_spreadsheet_draft_workflows.py` covers two unrelated
+areas. Keep Draft, drop Spreadsheet.
+
+Delete these classes and all their tests: `TestSpreadsheetWorkflow` (line 147,
+4 tests) and `TestCombinedSpreadsheetDraftWorkflow` (line 1090, 1 test).
+
+Keep `TestDraftShapeStringWorkflow` (line 552, 4 tests) and every module-level
+helper and fixture it uses — including the nested `test_export` (line 92) and
+`test_create_doc` (line 114) helpers, if the Draft tests depend on them. Check
+before deleting either.
+
+Then rename the file:
+
+```bash
+git mv tests/integration/test_spreadsheet_draft_workflows.py tests/integration/test_draft_workflows.py
+```
+
+- [ ] **Step 5: Update the profile test**
+
+`tests/unit/test_parametric_profile.py:97-98` asserts `spreadsheet_create` and
+`spreadsheet_set_cell` are absent from the parametric profile. Those assertions
+now pass trivially because the tools do not exist at all. Remove both lines; the
+surrounding test still covers the tools that do exist.
+
+- [ ] **Step 6: Update the documentation**
+
+- `CLAUDE.md`: remove the "Spreadsheet Tools (Full Profile)" table and any
+  spreadsheet row in the tool-category summary.
+- `docs/guide/tools.md`: remove the spreadsheet section and its summary-table row,
+  and correct the tool count in the header.
+- `docs/MCP_TOOLS_REFERENCE.md`: remove the spreadsheet signatures.
+
+Leave `docs/COMPARISON.md`, `docs/development/declarative-parametric-cad-landscape.md`,
+and `docs/development/parametric-cad-agent-research.md` alone — those discuss
+spreadsheets as a CAD concept, not as tools this server provides.
+
+- [ ] **Step 7: Verify nothing references the removed module**
+
+Run: `grep -rn "register_spreadsheet_tools\|tools.spreadsheet\|spreadsheet_create\|spreadsheet_set_cell\|spreadsheet_bind_property" src/ tests/ docs/guide docs/MCP_TOOLS_REFERENCE.md CLAUDE.md`
+Expected: no output.
+
+Incidental references to the FreeCAD *workbench* named Spreadsheet are fine and
+must stay: `bridge/base.py:57` (`SPREADSHEET = "Spreadsheet"` enum value),
+`bridge/embedded.py:1091`, `bridge/xmlrpc.py:773`, `tools/view.py:269`.
+
+- [ ] **Step 8: Run the quality gate**
+
+Run: `just testing::unit && just quality::lint && just quality::typecheck`
+Expected: all PASS. Note `uv run pytest` resolves to a system PyPy 2.7 on this
+machine; use `uv run python -m pytest` for direct pytest invocations.
+
+Run: `uv run --frozen --extra dev python -m mkdocs build --strict`
+Expected: PASS.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add -u src/freecad_mcp/tools/ src/freecad_mcp/resources/freecad.py \
+        tests/unit/test_parametric_profile.py tests/integration/ \
+        CLAUDE.md docs/guide/tools.md docs/MCP_TOOLS_REFERENCE.md
+git commit -m "refactor: remove the legacy Spreadsheet tools"
+```
+
+---
+
+### Task 4: Migrate `variables.py` to the executor boundary
 
 The smallest mutating module, and the one that produced most of qwen's errors. Migrating it first proves the pattern on a module with live regression coverage already in `tests/integration/test_stage_c_regressions.py`.
 
@@ -884,7 +1002,7 @@ The smallest mutating module, and the one that produced most of qwen's errors. M
 **Interfaces:**
 
 - Consumes: `execute_python(..., transaction=...)` from Task 2.
-- Produces: the migration pattern Tasks 4 and 5 repeat.
+- Produces: the migration pattern Tasks 5 and 5 repeat.
 
 - [ ] **Step 1: Replace the in-code transaction with a declared one**
 
@@ -960,7 +1078,7 @@ git commit -m "refactor: declare variable tool transactions at the executor"
 
 ---
 
-### Task 4: Migrate `partdesign.py` to the executor boundary
+### Task 5: Migrate `partdesign.py` to the executor boundary
 
 The largest module: 18 `open_owned_transaction` sites and 18 raw `openTransaction` sites.
 
@@ -986,7 +1104,7 @@ Each match carries the exact transaction name to pass as `transaction=`. Work th
 
 - [ ] **Step 2: Migrate each site**
 
-Apply the Task 3 pattern: delete the scaffolding from the generated code, dedent the body, and pass the name at the `execute_python` call. Transactional rollbacks that currently raise inside the `try` keep raising — the executor aborts on any exception, so the volume-reduction and one-solid rejections keep working with less code.
+Apply the Task 4 pattern: delete the scaffolding from the generated code, dedent the body, and pass the name at the `execute_python` call. Transactional rollbacks that currently raise inside the `try` keep raising — the executor aborts on any exception, so the volume-reduction and one-solid rejections keep working with less code.
 
 - [ ] **Step 3: Verify no transaction calls remain in this module**
 
@@ -1012,17 +1130,15 @@ git commit -m "refactor: declare PartDesign tool transactions at the executor"
 
 ---
 
-### Task 5: Migrate the remaining modules
+### Task 6: Migrate the remaining modules
 
-`objects.py` (20 raw sites), `spreadsheet.py` (6), `draft.py` (5), `bridge/xmlrpc.py` (3), `validation.py` (1), `view.py` (1).
+`objects.py` (20 raw sites), `draft.py` (5), `bridge/xmlrpc.py` (3), `validation.py` (1), `view.py` (1). Task 3 deleted `spreadsheet.py`, removing 6 sites that this task originally carried.
 
 `objects.py` includes `edit_object`, `create_object`, and `delete_object` — the three that never had a transaction. They get one here purely by declaring a name; no other change.
 
-`spreadsheet.py` carries unrelated in-flight work. Confine edits to transaction handling.
-
 **Files:**
 
-- Modify: `src/freecad_mcp/tools/objects.py`, `src/freecad_mcp/tools/spreadsheet.py`, `src/freecad_mcp/tools/draft.py`, `src/freecad_mcp/tools/validation.py`, `src/freecad_mcp/tools/view.py`, `src/freecad_mcp/bridge/xmlrpc.py`
+- Modify: `src/freecad_mcp/tools/objects.py`, `src/freecad_mcp/tools/draft.py`, `src/freecad_mcp/tools/validation.py`, `src/freecad_mcp/tools/view.py`, `src/freecad_mcp/bridge/xmlrpc.py`
 - Test: `tests/unit/test_tools_objects.py`, `tests/unit/test_tools_draft.py`, `tests/unit/test_tools_validation.py`, `tests/unit/test_tools_view.py`
 
 **Interfaces:**
@@ -1032,7 +1148,7 @@ git commit -m "refactor: declare PartDesign tool transactions at the executor"
 
 - [ ] **Step 1: Migrate the tool modules**
 
-Apply the Task 3 pattern to `objects.py`, `spreadsheet.py`, `draft.py`, `validation.py`, and `view.py`.
+Apply the Task 4 pattern to `objects.py`, `draft.py`, `validation.py`, and `view.py`.
 
 The three bridge-layer mutators need only a declared name, since they have no scaffolding to remove:
 
@@ -1067,7 +1183,6 @@ Expected: PASS.
 
 ```bash
 git add src/freecad_mcp/tools/objects.py \
-        src/freecad_mcp/tools/spreadsheet.py \
         src/freecad_mcp/tools/draft.py \
         src/freecad_mcp/tools/validation.py \
         src/freecad_mcp/tools/view.py \
@@ -1078,7 +1193,7 @@ git commit -m "refactor: declare remaining tool transactions at the executor"
 
 ---
 
-### Task 6: Delete the old machinery and verify
+### Task 7: Delete the old machinery and verify
 
 Nothing calls the owned-transaction helpers now. Removing them is what makes the wedge unreachable rather than merely unused.
 
@@ -1089,7 +1204,7 @@ Nothing calls the owned-transaction helpers now. Removing them is what makes the
 
 **Interfaces:**
 
-- Consumes: Tasks 3, 4 and 5 removed every caller.
+- Consumes: Tasks 4, 5 and 6 removed every caller.
 - Produces: a `WORKFLOW_HELPERS` containing only revision helpers.
 
 - [ ] **Step 1: Confirm there are no remaining callers**
