@@ -53,7 +53,9 @@ def _check_bridge_connection() -> tuple[bool, str | None, str | None]:
                     """
 import FreeCAD
 _result_ = {"gui_up": bool(FreeCAD.GuiUp)}
-"""
+""",
+                    30000,
+                    None,
                 )
                 if gui_check.get("success") and gui_check.get("result"):
                     _gui_available = gui_check["result"].get("gui_up", False)

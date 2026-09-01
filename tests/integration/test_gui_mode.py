@@ -40,7 +40,7 @@ def temp_dir() -> Generator[str, None, None]:
 
 def execute_code(proxy: xmlrpc.client.ServerProxy, code: str) -> dict[str, Any]:
     """Execute Python code via the MCP bridge and return the result."""
-    result: dict[str, Any] = proxy.execute(code)  # type: ignore[assignment]
+    result: dict[str, Any] = proxy.execute(code, 30000, None)  # type: ignore[assignment]
     assert result.get("success"), f"Execution failed: {result.get('error_traceback')}"
     return result
 

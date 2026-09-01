@@ -43,7 +43,9 @@ def _check_gui_available() -> bool:
             """
 import FreeCAD
 _result_ = {"gui_up": bool(FreeCAD.GuiUp)}
-"""
+""",
+            30000,
+            None,
         )
         if result.get("success") and result.get("result"):
             return result["result"].get("gui_up", False)
@@ -113,7 +115,7 @@ _result_ = {
     "thread_name": threading.current_thread().name,
 }
 """
-        result: dict[str, Any] = xmlrpc_proxy.execute(code)  # type: ignore[assignment]
+        result: dict[str, Any] = xmlrpc_proxy.execute(code, 30000, None)  # type: ignore[assignment]
 
         assert result["success"], f"Execution failed: {result.get('stderr', '')}"
         assert result["result"] is not None
@@ -148,7 +150,7 @@ _result_ = {
     "thread_name": threading.current_thread().name,
 }
 """
-        result: dict[str, Any] = xmlrpc_proxy.execute(code)  # type: ignore[assignment]
+        result: dict[str, Any] = xmlrpc_proxy.execute(code, 30000, None)  # type: ignore[assignment]
 
         assert result["success"], f"Execution failed: {result.get('stderr', '')}"
         assert result["result"] is not None
@@ -199,7 +201,7 @@ finally:
 
 _result_ = {{"success": created, "doc_name": doc_name}}
 """
-        result: dict[str, Any] = xmlrpc_proxy.execute(code)  # type: ignore[assignment]
+        result: dict[str, Any] = xmlrpc_proxy.execute(code, 30000, None)  # type: ignore[assignment]
 
         # If we get here without crash, the test passed
         assert result["success"], f"Execution failed: {result.get('stderr', '')}"
@@ -224,7 +226,7 @@ _result_ = {
     "thread_name": threading.current_thread().name,
 }
 """
-        result: dict[str, Any] = xmlrpc_proxy.execute(code)  # type: ignore[assignment]
+        result: dict[str, Any] = xmlrpc_proxy.execute(code, 30000, None)  # type: ignore[assignment]
 
         assert result["success"], f"Execution failed: {result.get('stderr', '')}"
         assert result["result"] is not None
@@ -283,7 +285,7 @@ _result_ = {{
     "visibility": visible,
 }}
 """
-        result: dict[str, Any] = xmlrpc_proxy.execute(code)  # type: ignore[assignment]
+        result: dict[str, Any] = xmlrpc_proxy.execute(code, 30000, None)  # type: ignore[assignment]
 
         assert result["success"], f"Execution failed: {result.get('stderr', '')}"
         assert result["result"] is not None
@@ -340,7 +342,7 @@ _result_ = {
     "mode_correct": mode_correct,
 }
 """
-        result: dict[str, Any] = xmlrpc_proxy.execute(code)  # type: ignore[assignment]
+        result: dict[str, Any] = xmlrpc_proxy.execute(code, 30000, None)  # type: ignore[assignment]
 
         assert result["success"], f"Execution failed: {result.get('stderr', '')}"
         assert result["result"] is not None

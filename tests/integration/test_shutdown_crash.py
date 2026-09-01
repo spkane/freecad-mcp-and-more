@@ -190,7 +190,9 @@ def _is_gui_available(host: str = "localhost", port: int = 9875) -> bool:
     try:
         proxy = xmlrpc.client.ServerProxy(f"http://{host}:{port}", allow_none=True)
         result = proxy.execute(
-            "import FreeCAD\n_result_ = {'gui_up': bool(FreeCAD.GuiUp)}"
+            "import FreeCAD\n_result_ = {'gui_up': bool(FreeCAD.GuiUp)}",
+            30000,
+            None,
         )
         if isinstance(result, dict) and result.get("success"):
             inner = result.get("result")
@@ -226,7 +228,9 @@ if FreeCAD.GuiUp:
     mainWindow = FreeCADGui.getMainWindow()
     if mainWindow:
         mainWindow.close()
-"""
+""",
+            30000,
+            None,
         )
         return True
     except Exception:

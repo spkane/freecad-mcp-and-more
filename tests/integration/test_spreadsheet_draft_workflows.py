@@ -139,7 +139,7 @@ def execute_code(proxy: xmlrpc.client.ServerProxy, code: str) -> dict[str, Any]:
         result = execute_code(proxy, "_result_ = {'version': 1}")
         assert result["result"]["version"] == 1
     """
-    result: dict[str, Any] = proxy.execute(code)  # type: ignore[assignment]
+    result: dict[str, Any] = proxy.execute(code, 30000, None)  # type: ignore[assignment]
     assert result.get("success"), f"Execution failed: {result.get('error_traceback')}"
     return result
 
