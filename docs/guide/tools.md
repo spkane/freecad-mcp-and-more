@@ -125,16 +125,15 @@ when BREP interchange is an acceptance requirement.
 
 ## Full Profile
 
-The full profile exposes 158 tools: the historical interface plus native
+The full profile exposes 136 tools: the historical interface plus native
 variable tools:
 
 ```bash
 FREECAD_TOOL_PROFILE=full freecad-mcp
 ```
 
-The full profile restores arbitrary Python execution, Spreadsheets, macros,
-generic Part and Draft operations, extra formats, and less common PartDesign
-helpers.
+The full profile restores arbitrary Python execution, generic Part operations,
+extra formats, and less common PartDesign helpers.
 
 ## Next Steps
 

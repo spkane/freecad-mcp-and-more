@@ -7,7 +7,6 @@ Prompt Categories:
     - Design Workflows: Part design, sketching, modeling
     - Export/Import: File format handling
     - Analysis: Shape inspection, validation
-    - Macro Development: Scripting guidance
     - Troubleshooting: Common issues and solutions
 """
 
@@ -908,85 +907,6 @@ get_screenshot()  # Force view update
 3. `get_console_output` - Check for error messages
 4. `recompute_document` - Force update
 5. `get_screenshot` - Visual verification
-"""
-
-    # =========================================================================
-    # Macro Development Prompts
-    # =========================================================================
-
-    @mcp.prompt()
-    async def macro_development() -> str:
-        """Guide for developing FreeCAD macros.
-
-        Returns:
-            Macro development guidance.
-        """
-        return """# FreeCAD Macro Development Guide
-
-## Macro Structure
-A FreeCAD macro is a Python script that automates tasks.
-
-### Basic Template
-```python
-# -*- coding: utf-8 -*-
-# Macro: MacroName
-# Description: What the macro does
-
-import FreeCAD
-import FreeCADGui
-
-def main():
-    # Get active document
-    doc = FreeCAD.ActiveDocument
-    if doc is None:
-        FreeCAD.Console.PrintError("No active document\\n")
-        return
-
-    # Your code here
-
-    doc.recompute()
-    FreeCAD.Console.PrintMessage("Macro completed\\n")
-
-if __name__ == "__main__":
-    main()
-```
-
-## Creating a Macro
-Use `create_macro` to save a macro:
-```python
-create_macro(
-    name="MyMacro",
-    code="... macro code ...",
-    description="What it does"
-)
-```
-
-Or use a template:
-```python
-create_macro_from_template(
-    template_name="part",  # basic, part, sketch, gui, selection
-    macro_name="MyPartMacro"
-)
-```
-
-## Available Templates
-- **basic**: Minimal template
-- **part**: Part creation with primitives
-- **sketch**: 2D sketch operations
-- **gui**: GUI interaction with message boxes
-- **selection**: Working with selected objects
-
-## Running Macros
-```python
-run_macro("MacroName")
-```
-
-## Best Practices
-1. Always check for active document
-2. Use FreeCAD.Console for output
-3. Call doc.recompute() after changes
-4. Handle exceptions gracefully
-5. Add descriptive comments
 """
 
     @mcp.prompt()

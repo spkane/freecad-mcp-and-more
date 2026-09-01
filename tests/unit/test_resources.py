@@ -10,7 +10,6 @@ import pytest
 from freecad_mcp.bridge.base import (
     ConnectionStatus,
     DocumentInfo,
-    MacroInfo,
     ObjectInfo,
     WorkbenchInfo,
 )
@@ -365,36 +364,6 @@ class TestFreecadResources:
 
         assert data["name"] == "PartDesignWorkbench"
         assert data["label"] == "Part Design"
-
-    @pytest.mark.asyncio
-    async def test_resource_macros(
-        self, register_resources: dict[str, Callable[..., Any]], mock_bridge: AsyncMock
-    ) -> None:
-        """freecad://macros should return macro list."""
-        mock_macros = [
-            MacroInfo(
-                name="ExportSTL",
-                path="/home/user/.local/share/FreeCAD/Macro/ExportSTL.FCMacro",
-                description="Export objects to STL",
-                is_system=False,
-            ),
-            MacroInfo(
-                name="SystemMacro",
-                path="/usr/share/freecad/Macro/SystemMacro.FCMacro",
-                description="System macro",
-                is_system=True,
-            ),
-        ]
-        mock_bridge.get_macros = AsyncMock(return_value=mock_macros)
-
-        resource_macros = register_resources["freecad://macros"]
-        result = await resource_macros()
-        data = json.loads(result)
-
-        assert len(data) == 2
-        assert data[0]["name"] == "ExportSTL"
-        assert data[0]["is_system"] is False
-        assert data[1]["is_system"] is True
 
     @pytest.mark.asyncio
     async def test_resource_console(

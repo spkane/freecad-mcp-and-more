@@ -2025,32 +2025,6 @@ The categories below document the opt-in full profile.
 | `bind_expressions` | Apply related expression bindings in one atomic transaction.     |
 | `set_expression`   | Bind one feature property or sketch dimension for local repair.  |
 
-### Spreadsheet Tools (Full Profile)
-
-| Tool                         | Description                                              |
-| ---------------------------- | -------------------------------------------------------- |
-| `spreadsheet_create`         | Create a new Spreadsheet object for parametric design.   |
-| `spreadsheet_set_cell`       | Set cell value (number, string, or formula like =A1*2).  |
-| `spreadsheet_get_cell`       | Get cell value and computed result.                      |
-| `spreadsheet_set_alias`      | Set alias for cell (e.g., "Length") for expressions.     |
-| `spreadsheet_get_aliases`    | Get all aliases defined in a spreadsheet.                |
-| `spreadsheet_clear_cell`     | Clear a cell content and alias.                          |
-| `spreadsheet_bind_property`  | Bind object property to spreadsheet cell via expression. |
-| `spreadsheet_get_cell_range` | Get values from a range of cells.                        |
-| `spreadsheet_import_csv`     | Import data from CSV file into spreadsheet.              |
-| `spreadsheet_export_csv`     | Export spreadsheet data to CSV file.                     |
-
-### Draft Tools (3D Text/ShapeString)
-
-| Tool                          | Description                                           |
-| ----------------------------- | ----------------------------------------------------- |
-| `draft_shapestring`           | Create 3D text geometry from a string and font.       |
-| `draft_list_fonts`            | List available system fonts for ShapeString.          |
-| `draft_shapestring_to_sketch` | Convert ShapeString to Sketch for PartDesign use.     |
-| `draft_shapestring_to_face`   | Convert ShapeString to Face for boolean operations.   |
-| `draft_text_on_surface`       | Emboss or engrave text directly on a surface.         |
-| `draft_extrude_shapestring`   | Extrude ShapeString to create 3D solid text.          |
-
 ### View & GUI Tools (Require GUI Mode)
 
 | Tool                    | Description                                                 |
@@ -2094,17 +2068,6 @@ The categories below document the opt-in full profile.
 | `export_iges` | Export objects to IGES format.                     |
 | `import_step` | Import STEP files.                                 |
 | `import_stl`  | Import STL files.                                  |
-
-### Macro Tools
-
-| Tool                         | Description                     |
-| ---------------------------- | ------------------------------- |
-| `list_macros`                | List available FreeCAD macros.  |
-| `run_macro`                  | Execute a macro by name.        |
-| `create_macro`               | Create a new macro file.        |
-| `read_macro`                 | Read macro source code.         |
-| `delete_macro`               | Delete a macro file.            |
-| `create_macro_from_template` | Create a macro from a template. |
 
 ### Parts Library Tools
 

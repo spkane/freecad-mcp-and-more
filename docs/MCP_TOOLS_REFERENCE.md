@@ -237,7 +237,7 @@ support visual review in GUI mode.
 
 ## Full Profile
 
-Set `FREECAD_TOOL_PROFILE=full` to register 158 tools: the historical 152-tool
+Set `FREECAD_TOOL_PROFILE=full` to register 136 tools: the historical 130-tool
 interface plus six native variable and task-oriented workflow tools. It includes
-arbitrary Python execution, Spreadsheets, macros, generic Part operations,
-Draft, extra formats, and the remaining specialized wrappers.
+arbitrary Python execution, generic Part operations, extra formats, and the
+remaining specialized wrappers.

@@ -94,8 +94,6 @@ def test_parametric_profile_registers_only_declared_tools() -> None:
     assert "safe_execute" not in mcp._registered_tools
     assert "create_box" not in mcp._registered_tools
     assert "run_macro" not in mcp._registered_tools
-    assert "spreadsheet_create" not in mcp._registered_tools
-    assert "spreadsheet_set_cell" not in mcp._registered_tools
 
 
 def test_full_profile_preserves_historical_tool_surface() -> None:
@@ -107,9 +105,8 @@ def test_full_profile_preserves_historical_tool_surface() -> None:
 
     register_all_tools(mcp, get_bridge)
 
-    assert len(mcp._registered_tools) == 158
+    assert len(mcp._registered_tools) == 136
     assert "execute_python" in mcp._registered_tools
-    assert "run_macro" in mcp._registered_tools
     assert "run_freecad_script" not in mcp._registered_tools
 
 

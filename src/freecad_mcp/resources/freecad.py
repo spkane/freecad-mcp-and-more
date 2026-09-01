@@ -15,7 +15,6 @@ Resource URIs:
     - freecad://active-document - Currently active document
     - freecad://workbenches - Available workbenches
     - freecad://workbenches/active - Currently active workbench
-    - freecad://macros - Available macros
     - freecad://console - Recent console output
 """
 
@@ -243,30 +242,6 @@ def register_resources(mcp: Any, get_bridge: Any) -> None:
                     indent=2,
                 )
         return json.dumps(None)
-
-    @mcp.resource("freecad://macros")
-    async def resource_macros() -> str:
-        """Get list of available FreeCAD macros.
-
-        Returns:
-            JSON string containing list of macros, each with:
-                - name: Macro name (without extension)
-                - path: Full file path
-                - description: Macro description
-                - is_system: Whether it's a system macro
-        """
-        bridge = await get_bridge()
-        macros = await bridge.get_macros()
-        macro_list = [
-            {
-                "name": macro.name,
-                "path": macro.path,
-                "description": macro.description,
-                "is_system": macro.is_system,
-            }
-            for macro in macros
-        ]
-        return json.dumps(macro_list, indent=2)
 
     @mcp.resource("freecad://console")
     async def resource_console() -> str:
@@ -1084,113 +1059,6 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                         },
                     ],
                 },
-                "spreadsheet": {
-                    "description": "Spreadsheet workbench for parametric design",
-                    "note": "All mutating operations are wrapped in transactions for undo support",
-                    "tools": [
-                        {
-                            "name": "spreadsheet_create",
-                            "description": "Create a new Spreadsheet object",
-                            "key_params": ["name", "doc_name"],
-                        },
-                        {
-                            "name": "spreadsheet_set_cell",
-                            "description": "Set cell value (number, string, or formula)",
-                            "key_params": ["spreadsheet_name", "cell", "value"],
-                        },
-                        {
-                            "name": "spreadsheet_get_cell",
-                            "description": "Get cell value and computed result",
-                            "key_params": ["spreadsheet_name", "cell"],
-                        },
-                        {
-                            "name": "spreadsheet_set_alias",
-                            "description": "Set alias for parametric references",
-                            "key_params": ["spreadsheet_name", "cell", "alias"],
-                        },
-                        {
-                            "name": "spreadsheet_get_aliases",
-                            "description": "Get all aliases in a spreadsheet",
-                            "key_params": ["spreadsheet_name"],
-                        },
-                        {
-                            "name": "spreadsheet_clear_cell",
-                            "description": "Clear a cell and its alias",
-                            "key_params": ["spreadsheet_name", "cell"],
-                        },
-                        {
-                            "name": "spreadsheet_bind_property",
-                            "description": "Bind object property to spreadsheet cell",
-                            "key_params": [
-                                "spreadsheet_name",
-                                "alias",
-                                "target_object",
-                                "target_property",
-                            ],
-                        },
-                        {
-                            "name": "spreadsheet_get_cell_range",
-                            "description": "Get values from a range of cells",
-                            "key_params": [
-                                "spreadsheet_name",
-                                "start_cell",
-                                "end_cell",
-                            ],
-                        },
-                        {
-                            "name": "spreadsheet_import_csv",
-                            "description": "Import CSV data into spreadsheet",
-                            "key_params": ["spreadsheet_name", "file_path"],
-                        },
-                        {
-                            "name": "spreadsheet_export_csv",
-                            "description": "Export spreadsheet to CSV file",
-                            "key_params": ["spreadsheet_name", "file_path"],
-                        },
-                    ],
-                },
-                "draft": {
-                    "description": "Draft workbench - ShapeString for 3D text",
-                    "note": "All mutating operations are wrapped in transactions for undo support",
-                    "tools": [
-                        {
-                            "name": "draft_shapestring",
-                            "description": "Create 3D text geometry from string and font",
-                            "key_params": ["text", "font_path", "size", "position"],
-                        },
-                        {
-                            "name": "draft_list_fonts",
-                            "description": "List available system fonts for ShapeString",
-                            "key_params": [],
-                        },
-                        {
-                            "name": "draft_shapestring_to_sketch",
-                            "description": "Convert ShapeString to Sketch for PartDesign",
-                            "key_params": ["shapestring_name", "body_name", "plane"],
-                        },
-                        {
-                            "name": "draft_shapestring_to_face",
-                            "description": "Convert ShapeString to Face for boolean ops",
-                            "key_params": ["shapestring_name"],
-                        },
-                        {
-                            "name": "draft_text_on_surface",
-                            "description": "Emboss or engrave text on a surface",
-                            "key_params": [
-                                "text",
-                                "target_face",
-                                "target_object",
-                                "depth",
-                                "operation",
-                            ],
-                        },
-                        {
-                            "name": "draft_extrude_shapestring",
-                            "description": "Extrude ShapeString to create 3D solid text",
-                            "key_params": ["shapestring_name", "height", "direction"],
-                        },
-                    ],
-                },
                 "sketcher_constraints": {
                     "description": "Sketcher constraint tools for fully defining geometry",
                     "note": "All operations are wrapped in transactions for undo support",
@@ -1456,41 +1324,6 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                         },
                     ],
                 },
-                "macros": {
-                    "description": "Macro management",
-                    "tools": [
-                        {
-                            "name": "list_macros",
-                            "description": "List available macros",
-                            "key_params": [],
-                        },
-                        {
-                            "name": "run_macro",
-                            "description": "Execute a macro",
-                            "key_params": ["macro_name"],
-                        },
-                        {
-                            "name": "create_macro",
-                            "description": "Create new macro",
-                            "key_params": ["macro_name", "code"],
-                        },
-                        {
-                            "name": "read_macro",
-                            "description": "Read macro source code",
-                            "key_params": ["macro_name"],
-                        },
-                        {
-                            "name": "delete_macro",
-                            "description": "Delete a macro",
-                            "key_params": ["macro_name"],
-                        },
-                        {
-                            "name": "create_macro_from_template",
-                            "description": "Create macro from predefined template",
-                            "key_params": ["macro_name", "template_name"],
-                        },
-                    ],
-                },
                 "parts_library": {
                     "description": "Parts library access",
                     "tools": [
@@ -1578,10 +1411,6 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                     "description": "Currently active workbench",
                 },
                 {
-                    "uri": "freecad://macros",
-                    "description": "Available FreeCAD macros",
-                },
-                {
                     "uri": "freecad://console",
                     "description": "Recent console output (debugging)",
                 },
@@ -1630,10 +1459,6 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                     "description": "Troubleshooting guide for model issues",
                 },
                 {
-                    "name": "macro_development",
-                    "description": "Guide for developing FreeCAD macros",
-                },
-                {
                     "name": "python_api_reference",
                     "description": "Quick reference for FreeCAD Python API",
                 },
@@ -1643,13 +1468,6 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                 },
             ],
             "examples": {
-                "debug_macro": {
-                    "description": "Debug a macro by checking console output",
-                    "steps": [
-                        "Use get_console_output(lines=50) to see recent errors",
-                        "Use execute_python to inspect document state",
-                    ],
-                },
                 "create_simple_part": {
                     "description": "Create a basic parametric part",
                     "steps": [
