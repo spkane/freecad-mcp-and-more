@@ -609,21 +609,14 @@ doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({d
 if doc is None:
     raise ValueError("No document found")
 
-# Wrap in transaction for undo support
-doc.openTransaction("Create Object")
-try:
-    obj = doc.addObject({type_id!r}, {name!r} or "")
+obj = doc.addObject({type_id!r}, {name!r} or "")
 
-    # Set properties
-    for prop_name, prop_val in {properties!r}.items():
-        if hasattr(obj, prop_name):
-            setattr(obj, prop_name, prop_val)
+# Set properties
+for prop_name, prop_val in {properties!r}.items():
+    if hasattr(obj, prop_name):
+        setattr(obj, prop_name, prop_val)
 
-    doc.recompute()
-    doc.commitTransaction()
-except Exception:
-    doc.abortTransaction()
-    raise
+doc.recompute()
 
 _result_ = {{
     "name": obj.Name,
@@ -634,7 +627,7 @@ _result_ = {{
     "parents": [p.Name for p in obj.InList] if hasattr(obj, "InList") else [],
 }}
 """
-        result = await self.execute_python(code, transaction=None)
+        result = await self.execute_python(code, transaction="Create Object")
 
         if result.success and result.result:
             return ObjectInfo(**result.result)
@@ -658,19 +651,12 @@ obj = doc.getObject({obj_name!r})
 if obj is None:
     raise ValueError(f"Object not found: {obj_name!r}")
 
-# Wrap in transaction for undo support
-doc.openTransaction("Edit Object")
-try:
-    # Set properties
-    for prop_name, prop_val in {properties!r}.items():
-        if hasattr(obj, prop_name):
-            setattr(obj, prop_name, prop_val)
+# Set properties
+for prop_name, prop_val in {properties!r}.items():
+    if hasattr(obj, prop_name):
+        setattr(obj, prop_name, prop_val)
 
-    doc.recompute()
-    doc.commitTransaction()
-except Exception:
-    doc.abortTransaction()
-    raise
+doc.recompute()
 
 _result_ = {{
     "name": obj.Name,
@@ -681,7 +667,7 @@ _result_ = {{
     "parents": [p.Name for p in obj.InList] if hasattr(obj, "InList") else [],
 }}
 """
-        result = await self.execute_python(code, transaction=None)
+        result = await self.execute_python(code, transaction="Edit Object")
 
         if result.success and result.result:
             return ObjectInfo(**result.result)
@@ -704,18 +690,11 @@ obj = doc.getObject({obj_name!r})
 if obj is None:
     raise ValueError(f"Object not found: {obj_name!r}")
 
-# Wrap in transaction for undo support
-doc.openTransaction("Delete Object")
-try:
-    doc.removeObject({obj_name!r})
-    doc.commitTransaction()
-except Exception:
-    doc.abortTransaction()
-    raise
+doc.removeObject({obj_name!r})
 
 _result_ = True
 """
-        result = await self.execute_python(code, transaction=None)
+        result = await self.execute_python(code, transaction="Delete Object")
 
         if not result.success:
             error_msg = result.error_traceback or "Failed to delete object"
