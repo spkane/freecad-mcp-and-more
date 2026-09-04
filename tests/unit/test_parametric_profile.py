@@ -95,37 +95,6 @@ def test_parametric_profile_registers_only_declared_tools() -> None:
     assert "run_macro" not in mcp._registered_tools
 
 
-@pytest.mark.asyncio
-async def test_legacy_capabilities_match_registered_tools_and_prompts() -> None:
-    """The legacy discovery catalog must not advertise stale names."""
-    from freecad_mcp.prompts.freecad import register_prompts
-    from freecad_mcp.resources.freecad import register_resources
-
-    async def get_bridge() -> AsyncMock:
-        return AsyncMock()
-
-    tool_mcp = _tool_registry()
-    register_tools(tool_mcp, get_bridge)
-
-    resource_mcp = _resource_registry()
-    register_resources(resource_mcp, get_bridge)
-    capabilities = json.loads(
-        await resource_mcp._registered_resources["freecad://capabilities"]()
-    )
-    catalog_tools = {
-        tool["name"]
-        for category in capabilities["tools"].values()
-        for tool in category["tools"]
-    }
-
-    prompt_mcp = _prompt_registry()
-    register_prompts(prompt_mcp, get_bridge)
-    catalog_prompts = {prompt["name"] for prompt in capabilities["prompts"]}
-
-    assert catalog_tools == set(tool_mcp._registered_tools)
-    assert catalog_prompts == set(prompt_mcp._registered_prompts)
-
-
 def test_server_instructions_are_the_parametric_guidance() -> None:
     """The server presents the parametric guidance; there is no other profile."""
     from freecad_mcp.server import mcp

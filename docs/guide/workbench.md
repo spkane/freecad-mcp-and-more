@@ -256,5 +256,3 @@ The workbench uses a **queue-based thread safety system** to ensure FreeCAD oper
 ---
 
 ## Macro Tools
-
-The MCP server provides tools for working with FreeCAD macros. See [Macros](macros.md) for details on using macro tools.

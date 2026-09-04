@@ -1190,6 +1190,18 @@ git commit -m "refactor: declare PartDesign tool transactions at the executor"
 
 ### Delete dead tools in these modules instead of migrating them
 
+Also delete the now-orphaned bridge-layer macro methods, which Task 3 left in
+place to keep its commit bounded: `get_macros`, `run_macro`, `create_macro`,
+`read_macro` and `delete_macro` in `bridge/base.py`, `bridge/socket.py`,
+`bridge/xmlrpc.py` and `bridge/embedded.py`, plus the `MacroInfo` dataclass in
+`bridge/base.py` if nothing else uses it. Nothing calls any of them since the
+`freecad://macros` resource was removed. Confirm with:
+
+```bash
+grep -rn "get_macros\|run_macro\|create_macro\|read_macro\|delete_macro\|MacroInfo" src/ tests/
+```
+
+
 Per the user's decision, do not add `transaction=` to a tool that is not in the
 parametric profile — delete the tool instead. Upgrading dead code is wasted work.
 

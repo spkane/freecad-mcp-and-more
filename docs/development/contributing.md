@@ -155,13 +155,13 @@ async def my_new_tool(
 # FreeCAD Python code here
 _result_ = {{"success": True}}
 '''
-    result = await bridge.execute_python(code)
+    result = await bridge.execute_python(code, transaction="Do The Thing")
     return result.result or {"success": False}
 ```
 
 1. **Add tests** in the appropriate test file
 1. **Update documentation** in `docs/guide/tools.md`
-1. **Update capabilities resource** in `src/freecad_mcp/resources/freecad.py`
+1. **Update capabilities resource** in `src/freecad_mcp/resources/parametric.py`
 
 ---
 
