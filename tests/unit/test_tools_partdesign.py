@@ -97,6 +97,10 @@ class TestPartDesignTools:
 
         assert result["name"] == "Sketch"
         mock_bridge.execute_python.assert_called_once()
+        assert (
+            mock_bridge.execute_python.call_args.kwargs["transaction"]
+            == "Create Sketch"
+        )
 
     @pytest.mark.asyncio
     async def test_create_sketch_supports_named_datum_plane(
@@ -403,6 +407,10 @@ class TestPartDesignTools:
         assert result["geometry_count"] == 4
         mock_bridge.execute_python.assert_called_once()
         code = mock_bridge.execute_python.call_args.args[0]
+        assert (
+            mock_bridge.execute_python.call_args.kwargs["transaction"]
+            == "Add Sketch Rectangle"
+        )
         assert '"geometry_indices": list(range(n, n + 4))' in code
         assert '"constraint_indices": list(' in code
 
@@ -426,6 +434,10 @@ class TestPartDesignTools:
 
         assert result["geometry_index"] == 0
         mock_bridge.execute_python.assert_called_once()
+        assert (
+            mock_bridge.execute_python.call_args.kwargs["transaction"]
+            == "Add Sketch Circle"
+        )
 
     @pytest.mark.asyncio
     async def test_add_sketch_line(self, register_tools, mock_bridge):
@@ -445,6 +457,10 @@ class TestPartDesignTools:
 
         assert result["geometry_index"] == 0
         mock_bridge.execute_python.assert_called_once()
+        assert (
+            mock_bridge.execute_python.call_args.kwargs["transaction"]
+            == "Add Sketch Line"
+        )
 
     @pytest.mark.asyncio
     async def test_add_sketch_arc(self, register_tools, mock_bridge):
@@ -471,6 +487,10 @@ class TestPartDesignTools:
 
         assert result["geometry_index"] == 0
         mock_bridge.execute_python.assert_called_once()
+        assert (
+            mock_bridge.execute_python.call_args.kwargs["transaction"]
+            == "Add Sketch Arc"
+        )
 
     @pytest.mark.asyncio
     async def test_add_sketch_point(self, register_tools, mock_bridge):
@@ -490,6 +510,10 @@ class TestPartDesignTools:
 
         assert result["geometry_index"] == 0
         mock_bridge.execute_python.assert_called_once()
+        assert (
+            mock_bridge.execute_python.call_args.kwargs["transaction"]
+            == "Add Sketch Point"
+        )
 
     @pytest.mark.asyncio
     async def test_pad_sketch(self, register_tools, mock_bridge):
@@ -1201,6 +1225,10 @@ class TestPartDesignTools:
 
         assert result["success"] is True
         mock_bridge.execute_python.assert_called_once()
+        assert (
+            mock_bridge.execute_python.call_args.kwargs["transaction"]
+            == "Delete Sketch Geometry"
+        )
 
     @pytest.mark.asyncio
     async def test_delete_sketch_constraint(self, register_tools, mock_bridge):
@@ -1220,6 +1248,10 @@ class TestPartDesignTools:
 
         assert result["success"] is True
         mock_bridge.execute_python.assert_called_once()
+        assert (
+            mock_bridge.execute_python.call_args.kwargs["transaction"]
+            == "Delete Sketch Constraint"
+        )
 
     @pytest.mark.asyncio
     async def test_get_sketch_info(self, register_tools, mock_bridge):
@@ -1277,6 +1309,10 @@ class TestPartDesignTools:
         assert result["success"] is True
         assert result["is_construction"] is True
         mock_bridge.execute_python.assert_called_once()
+        assert (
+            mock_bridge.execute_python.call_args.kwargs["transaction"]
+            == "Toggle Construction"
+        )
 
 
 class TestSymmetricExtrudeCompatibility:
