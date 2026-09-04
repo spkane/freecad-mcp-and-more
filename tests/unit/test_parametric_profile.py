@@ -105,7 +105,7 @@ def test_full_profile_preserves_historical_tool_surface() -> None:
 
     register_all_tools(mcp, get_bridge)
 
-    assert len(mcp._registered_tools) == 136
+    assert len(mcp._registered_tools) == 111
     assert "execute_python" in mcp._registered_tools
     assert "run_freecad_script" not in mcp._registered_tools
 
