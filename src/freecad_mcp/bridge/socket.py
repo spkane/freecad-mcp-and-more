@@ -611,7 +611,7 @@ _result_ = {{
     "parents": [p.Name for p in obj.InList] if hasattr(obj, "InList") else [],
 }}
 """
-        result = await self.execute_python(code, transaction=None)
+        result = await self.execute_python(code, transaction="Create Object")
 
         if result.success and result.result:
             return ObjectInfo(**result.result)
@@ -651,7 +651,7 @@ _result_ = {{
     "parents": [p.Name for p in obj.InList] if hasattr(obj, "InList") else [],
 }}
 """
-        result = await self.execute_python(code, transaction=None)
+        result = await self.execute_python(code, transaction="Edit Object")
 
         if result.success and result.result:
             return ObjectInfo(**result.result)
@@ -677,7 +677,7 @@ if obj is None:
 doc.removeObject({obj_name!r})
 _result_ = True
 """
-        result = await self.execute_python(code, transaction=None)
+        result = await self.execute_python(code, transaction="Delete Object")
 
         if not result.success:
             error_msg = result.error_traceback or "Failed to delete object"

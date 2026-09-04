@@ -71,7 +71,7 @@ This project uses [`uv`](https://docs.astral.sh/uv/) for Python package and virt
 
 ```bash
 # Install dependencies
-uv sync --all-extras
+uv sync
 
 # Run any Python tool
 uv run pytest              # Run tests

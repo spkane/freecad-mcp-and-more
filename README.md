@@ -80,8 +80,6 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
   expression batches, and validated features through typed MCP commands
 - **Multiple Connection Modes**: XML-RPC (recommended), JSON-RPC socket, or embedded
 - **GUI & Headless Support**: Full modeling in headless mode, plus screenshots/colors in GUI mode
-- **Opt-in full profile**: Access legacy generic primitives, arbitrary Python,
-  and macro development with `FREECAD_TOOL_PROFILE=full`
 
 ## Installation Requirements / Dependencies
 
@@ -164,7 +162,6 @@ just docker::build-multi  # Build multi-arch (amd64 + arm64)
 | `FREECAD_SOCKET_PORT` | JSON-RPC socket server port                          | `9876`      |
 | `FREECAD_XMLRPC_PORT` | XML-RPC server port                                  | `9875`      |
 | `FREECAD_TIMEOUT_MS`  | Execution timeout in ms                              | `30000`     |
-| `FREECAD_TOOL_PROFILE`| Tool interface: `parametric` or legacy `full`        | `parametric`|
 
 #### Connection Modes
 
@@ -186,8 +183,7 @@ Add something like the following to your MCP client settings. For Claude Code, t
     "freecad": {
       "command": "freecad-mcp",
       "env": {
-        "FREECAD_MODE": "xmlrpc",
-        "FREECAD_TOOL_PROFILE": "parametric"
+        "FREECAD_MODE": "xmlrpc"
       }
     }
   }
@@ -203,8 +199,7 @@ If installed from source with mise/uv:
       "command": "/path/to/mise/shims/uv",
       "args": ["run", "--project", "/path/to/freecad-addon-robust-mcp-server", "freecad-mcp"],
       "env": {
-        "FREECAD_MODE": "xmlrpc",
-        "FREECAD_TOOL_PROFILE": "parametric"
+        "FREECAD_MODE": "xmlrpc"
       }
     }
   }
@@ -364,15 +359,6 @@ The primary workflow creates a native `PartDesign::Body`, fully constrained
 sketches, native variable-driven expressions, and ordered additive or subtractive
 features through MCP commands. Read `freecad://parametric-parts/guide` or invoke
 `design_parametric_part` for the complete workflow.
-
-The 158-tool full profile retains the historical interface for existing clients:
-
-```bash
-FREECAD_TOOL_PROFILE=full freecad-mcp
-```
-
-The full profile is not recommended for compact local models because every tool
-schema consumes context and creates additional tool-selection ambiguity.
 
 ---
 

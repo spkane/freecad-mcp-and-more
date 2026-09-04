@@ -1,9 +1,8 @@
 """MCP tool profiles and implementations for FreeCAD.
 
-The default parametric profile presents a focused native PartDesign interface.
-The full historical surface remains available for compatibility.
+The parametric profile presents a focused, 54-tool native PartDesign interface.
 
-- execution: Python code execution tools
+- execution: FreeCAD status and console query tools
 - documents: Document management tools
 - objects: Object creation and manipulation tools
 - partdesign: PartDesign workbench tools

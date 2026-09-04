@@ -712,20 +712,28 @@ doc.UndoMode = 1
 
 # Step 1: Create initial box
 doc.openTransaction("Create Box")
-box = Part.makeBox(10, 10, 10)
-obj1 = doc.addObject("Part::Feature", "Box1")
-obj1.Shape = box
-doc.commitTransaction()
+try:
+    box = Part.makeBox(10, 10, 10)
+    obj1 = doc.addObject("Part::Feature", "Box1")
+    obj1.Shape = box
+    doc.commitTransaction()
+except Exception:
+    doc.abortTransaction()
+    raise
 doc.recompute()
 
 objects_after_box = len(doc.Objects)
 
 # Step 2: Create another box
 doc.openTransaction("Create Box 2")
-box2 = Part.makeBox(5, 5, 5)
-obj2 = doc.addObject("Part::Feature", "Box2")
-obj2.Shape = box2
-doc.commitTransaction()
+try:
+    box2 = Part.makeBox(5, 5, 5)
+    obj2 = doc.addObject("Part::Feature", "Box2")
+    obj2.Shape = box2
+    doc.commitTransaction()
+except Exception:
+    doc.abortTransaction()
+    raise
 doc.recompute()
 
 objects_after_box2 = len(doc.Objects)

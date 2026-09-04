@@ -1,7 +1,8 @@
-"""Execution tools for FreeCAD Robust MCP Server.
+"""FreeCAD status and console tools for the Robust MCP Server.
 
-This module provides tools for executing Python code in FreeCAD's context,
-getting version information, and accessing the console.
+This module registers tools for querying FreeCAD version information,
+connection status, and recent console output. Python execution is handled
+by the bridge layer, not by any tool registered here.
 """
 
 from collections.abc import Awaitable, Callable

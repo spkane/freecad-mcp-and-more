@@ -825,6 +825,23 @@ class TestPartDesignTools:
         assert "abort_owned_transaction(doc)" not in code
         assert "candidate.Content" in code
         assert "doc.commitTransaction()" not in code
+        _expected_transactions = {
+            "pad_sketch": "Pad Sketch",
+            "pocket_sketch": "Pocket Sketch",
+            "fillet_edges": "Fillet Edges",
+            "chamfer_edges": "Chamfer Edges",
+            "revolution_sketch": "Revolution Sketch",
+            "groove_sketch": "Groove Sketch",
+            "create_hole": "Create Hole",
+            "linear_pattern": "Linear Pattern",
+            "polar_pattern": "Polar Pattern",
+            "mirrored_feature": "Mirrored Feature",
+            "loft_sketches": "Loft Sketches",
+        }
+        assert (
+            mock_bridge.execute_python.call_args.kwargs["transaction"]
+            == _expected_transactions[tool_name]
+        )
         compile(code, f"<{tool_name}>", "exec")
 
     @pytest.mark.asyncio
@@ -863,6 +880,15 @@ class TestPartDesignTools:
         assert "open_owned_transaction(doc," not in code
         assert "abort_owned_transaction(doc)" not in code
         assert "doc.commitTransaction()" not in code
+        _expected_transactions = {
+            "pad_sketch": "Pad Sketch",
+            "revolution_sketch": "Revolution Sketch",
+            "loft_sketches": "Loft Sketches",
+        }
+        assert (
+            mock_bridge.execute_python.call_args.kwargs["transaction"]
+            == _expected_transactions[tool_name]
+        )
         compile(code, f"<{tool_name}>", "exec")
 
     @pytest.mark.asyncio
@@ -897,6 +923,15 @@ class TestPartDesignTools:
         assert "open_owned_transaction(doc," not in code
         assert "abort_owned_transaction(doc)" not in code
         assert "doc.commitTransaction()" not in code
+        _expected_transactions = {
+            "pocket_sketch": "Pocket Sketch",
+            "groove_sketch": "Groove Sketch",
+            "create_hole": "Create Hole",
+        }
+        assert (
+            mock_bridge.execute_python.call_args.kwargs["transaction"]
+            == _expected_transactions[tool_name]
+        )
         compile(code, f"<{tool_name}>", "exec")
 
     @pytest.mark.asyncio
