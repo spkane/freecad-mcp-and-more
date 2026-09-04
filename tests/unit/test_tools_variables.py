@@ -116,8 +116,11 @@ async def test_define_variables_batches_values_and_expressions(
     assert "var_set.addProperty(" in code
     assert "Reserved App::VarSet property" in code
     assert "var_set.setExpression(name, expression)" in code
-    assert 'open_owned_transaction(doc, "Define Variables")' in code
-    assert "abort_owned_transaction(doc)" in code
+    assert "open_owned_transaction(doc," not in code
+    assert "abort_owned_transaction(doc)" not in code
+    assert (
+        mock_bridge.execute_python.call_args.kwargs["transaction"] == "Define Variables"
+    )
     assert "candidate.Content" in code
     assert 'or "Touched" in candidate.State' in code
     assert "var_set.evalExpression(expression)" in code
@@ -134,7 +137,8 @@ async def test_define_variables_batches_values_and_expressions(
     assert "expression_diagnostics=%s" in code
     assert "VALIDATION_FAILED: Expression assignment failed" in code
     assert "VALIDATION_FAILED: Recompute failed" in code
-    assert code.index('"variables": serialized') < code.index("doc.commitTransaction()")
+    assert '"variables": serialized' in code
+    assert "doc.commitTransaction()" not in code
     compile(code, "<define_variables>", "exec")
 
 
@@ -240,11 +244,15 @@ async def test_set_expression_accepts_sketch_constraint_paths(
     code = mock_bridge.execute_python.call_args.args[0]
     assert "obj.setExpression(property_path, expression)" in code
     assert "hasattr(obj, property_path)" not in code
-    assert 'open_owned_transaction(doc, "Set Expression")' in code
-    assert "abort_owned_transaction(doc)" in code
+    assert "open_owned_transaction(doc," not in code
+    assert "abort_owned_transaction(doc)" not in code
+    assert (
+        mock_bridge.execute_python.call_args.kwargs["transaction"] == "Set Expression"
+    )
     assert "candidate.Content" in code
     assert 'or "Touched" in candidate.State' in code
-    assert code.index('"object_name": obj.Name') < code.index("doc.commitTransaction()")
+    assert '"object_name": obj.Name' in code
+    assert "doc.commitTransaction()" not in code
     compile(code, "<set_expression>", "exec")
 
 
@@ -313,17 +321,21 @@ async def test_bind_expressions_applies_one_atomic_batch(
 
     assert len(result["bindings"]) == 2
     code = mock_bridge.execute_python.call_args.args[0]
-    assert code.count('open_owned_transaction(doc, "Bind Expressions")') == 1
+    assert "open_owned_transaction(doc," not in code
+    assert (
+        mock_bridge.execute_python.call_args.kwargs["transaction"] == "Bind Expressions"
+    )
     assert "for binding in bindings:" in code
     assert "obj.setExpression(property_path, expression)" in code
-    assert code.count("doc.recompute()") == 2  # success and rollback paths
+    assert code.count("doc.recompute()") == 1  # the executor owns rollback now
     assert "STALE_REVISION" in code
     assert "candidate.Content" in code
     assert "root_property" in code
     assert "InListRecursive" in code
     assert 'candidate.TypeId == "PartDesign::Body"' in code
-    assert "abort_owned_transaction(doc)" in code
-    assert code.index('"bindings": serialized') < code.index("doc.commitTransaction()")
+    assert "abort_owned_transaction(doc)" not in code
+    assert '"bindings": serialized' in code
+    assert "doc.commitTransaction()" not in code
     compile(code, "<bind_expressions>", "exec")
 
 

@@ -194,138 +194,131 @@ if var_set is not None:
                 f"{{var_set.getTypeIdOfProperty(name)}}, expected {{property_type}}"
             )
 
-open_owned_transaction(doc, "Define Variables")
-try:
-    if var_set is None:
-        var_set = doc.addObject("App::VarSet", variable_set_name)
-    if {label!r} is not None:
-        var_set.Label = {label!r}
+if var_set is None:
+    var_set = doc.addObject("App::VarSet", variable_set_name)
+if {label!r} is not None:
+    var_set.Label = {label!r}
 
-    # Create every property first so expressions can reference any batch member.
-    for definition in definitions:
+# Create every property first so expressions can reference any batch member.
+for definition in definitions:
+    name = definition["name"]
+    property_type = type_map[definition["kind"]]
+    if name not in var_set.PropertiesList:
+        var_set.addProperty(
+            property_type,
+            name,
+            definition["group"],
+            definition["description"],
+        )
+
+for definition in definitions:
+    if definition["value"] is not None:
         name = definition["name"]
-        property_type = type_map[definition["kind"]]
-        if name not in var_set.PropertiesList:
-            var_set.addProperty(
-                property_type,
-                name,
-                definition["group"],
-                definition["description"],
-            )
+        var_set.setExpression(name, None)
+        setattr(var_set, name, definition["value"])
 
-    for definition in definitions:
-        if definition["value"] is not None:
-            name = definition["name"]
-            var_set.setExpression(name, None)
-            setattr(var_set, name, definition["value"])
+def describe_expression_error(definition: dict, error: Exception) -> dict:
+    return {{
+        "object_name": var_set.Name,
+        "property_path": definition["name"],
+        "expression": definition["expression"],
+        "error": str(error),
+    }}
 
-    def describe_expression_error(definition: dict, error: Exception) -> dict:
-        return {{
-            "object_name": var_set.Name,
-            "property_path": definition["name"],
-            "expression": definition["expression"],
-            "error": str(error),
-        }}
+expression_diagnostics = []
 
-    expression_diagnostics = []
-
-    def collect_expression_evaluation_errors(
-        definitions: list[dict], skipped_names: set[str]
-    ) -> None:
-        for definition in definitions:
-            expression = definition["expression"]
-            if expression is None or definition["name"] in skipped_names:
-                continue
-            try:
-                var_set.evalExpression(expression)
-            except Exception as error:
-                expression_diagnostics.append(
-                    describe_expression_error(definition, error)
-                )
-
-    rejected_expression_names = set()
+def collect_expression_evaluation_errors(
+    definitions: list[dict], skipped_names: set[str]
+) -> None:
     for definition in definitions:
         expression = definition["expression"]
-        if expression is not None:
-            name = definition["name"]
-            try:
-                var_set.setExpression(name, expression)
-            except Exception as error:
-                rejected_expression_names.add(name)
-                expression_diagnostics.append(
-                    describe_expression_error(definition, error)
-                )
-    if expression_diagnostics:
-        collect_expression_evaluation_errors(
-            definitions, rejected_expression_names
-        )
-        raise RuntimeError(
-            "VALIDATION_FAILED: Expression assignment failed: "
-            "expression_diagnostics=%s" % expression_diagnostics
-        )
+        if expression is None or definition["name"] in skipped_names:
+            continue
+        try:
+            var_set.evalExpression(expression)
+        except Exception as error:
+            expression_diagnostics.append(
+                describe_expression_error(definition, error)
+            )
 
-    doc.recompute()
-    invalid_objects = [
-        {{"name": candidate.Name, "state": list(candidate.State)}}
-        for candidate in doc.Objects
-        if (
-            "Invalid" in candidate.State
-            or "Error" in candidate.State
-            or "Touched" in candidate.State
-        )
-    ]
-    if invalid_objects:
-        collect_expression_evaluation_errors(definitions, set())
-        raise RuntimeError(
-            "VALIDATION_FAILED: Recompute failed: "
-            "invalid_objects=%s, expression_diagnostics=%s"
-            % (invalid_objects, expression_diagnostics)
-        )
-
-    expressions = {{
-        path: str(expression)
-        for path, expression in getattr(var_set, "ExpressionEngine", [])
-    }}
-    serialized = []
-    for definition in definitions:
+rejected_expression_names = set()
+for definition in definitions:
+    expression = definition["expression"]
+    if expression is not None:
         name = definition["name"]
-        value = getattr(var_set, name)
-        if hasattr(value, "Value"):
-            raw_value = float(value.Value)
-            display_value = str(value)
-        elif isinstance(value, (bool, int, float, str)):
-            raw_value = value
-            display_value = str(value)
-        else:
-            raw_value = str(value)
-            display_value = str(value)
-        serialized.append({{
-            "name": name,
-            "type": var_set.getTypeIdOfProperty(name),
-            "group": var_set.getGroupOfProperty(name),
-            "value": raw_value,
-            "display_value": display_value,
-            "expression": expressions.get(name),
-        }})
+        try:
+            var_set.setExpression(name, expression)
+        except Exception as error:
+            rejected_expression_names.add(name)
+            expression_diagnostics.append(
+                describe_expression_error(definition, error)
+            )
+if expression_diagnostics:
+    collect_expression_evaluation_errors(
+        definitions, rejected_expression_names
+    )
+    raise RuntimeError(
+        "VALIDATION_FAILED: Expression assignment failed: "
+        "expression_diagnostics=%s" % expression_diagnostics
+    )
 
-    _result_ = {{
-        "document_ref": {{
-            "name": doc.Name,
-            "revision": document_revision(doc),
-        }},
-        "operation_id": "op_" + uuid.uuid4().hex[:12],
-        "name": var_set.Name,
-        "label": var_set.Label,
-        "type_id": var_set.TypeId,
-        "variables": serialized,
-    }}
-    doc.commitTransaction()
-except Exception:
-    abort_owned_transaction(doc)
-    doc.recompute()
-    raise
+doc.recompute()
+invalid_objects = [
+    {{"name": candidate.Name, "state": list(candidate.State)}}
+    for candidate in doc.Objects
+    if (
+        "Invalid" in candidate.State
+        or "Error" in candidate.State
+        or "Touched" in candidate.State
+    )
+]
+if invalid_objects:
+    collect_expression_evaluation_errors(definitions, set())
+    raise RuntimeError(
+        "VALIDATION_FAILED: Recompute failed: "
+        "invalid_objects=%s, expression_diagnostics=%s"
+        % (invalid_objects, expression_diagnostics)
+    )
+
+expressions = {{
+    path: str(expression)
+    for path, expression in getattr(var_set, "ExpressionEngine", [])
+}}
+serialized = []
+for definition in definitions:
+    name = definition["name"]
+    value = getattr(var_set, name)
+    if hasattr(value, "Value"):
+        raw_value = float(value.Value)
+        display_value = str(value)
+    elif isinstance(value, (bool, int, float, str)):
+        raw_value = value
+        display_value = str(value)
+    else:
+        raw_value = str(value)
+        display_value = str(value)
+    serialized.append({{
+        "name": name,
+        "type": var_set.getTypeIdOfProperty(name),
+        "group": var_set.getGroupOfProperty(name),
+        "value": raw_value,
+        "display_value": display_value,
+        "expression": expressions.get(name),
+    }})
+
+_result_ = {{
+    "document_ref": {{
+        "name": doc.Name,
+        "revision": document_revision(doc),
+    }},
+    "operation_id": "op_" + uuid.uuid4().hex[:12],
+    "name": var_set.Name,
+    "label": var_set.Label,
+    "type_id": var_set.TypeId,
+    "variables": serialized,
+}}
 """
-        result = await bridge.execute_python(code, transaction=None)
+        result = await bridge.execute_python(code, transaction="Define Variables")
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Define variables failed")
@@ -494,102 +487,95 @@ for binding in bindings:
     for candidate in getattr(obj, "InListRecursive", []):
         affected_objects[candidate.Name] = candidate
 
-open_owned_transaction(doc, "Bind Expressions")
-try:
-    for binding in bindings:
-        obj = objects[binding["object_name"]]
-        property_path = binding["property_path"]
-        expression = binding["expression"]
-        obj.setExpression(property_path, expression)
+for binding in bindings:
+    obj = objects[binding["object_name"]]
+    property_path = binding["property_path"]
+    expression = binding["expression"]
+    obj.setExpression(property_path, expression)
 
-    doc.recompute()
-    invalid_objects = []
-    for candidate in affected_objects.values():
-        state = list(getattr(candidate, "State", []))
-        errors = []
-        if "Invalid" in state or "Error" in state:
-            errors.append("Object state is invalid")
-        if "Touched" in state:
-            errors.append("Object still needs recompute")
-        shape = getattr(candidate, "Shape", None)
-        if candidate.TypeId == "PartDesign::Body":
-            if shape is None or shape.isNull():
-                errors.append("PartDesign Body has no result shape")
-            elif len(shape.Solids) != 1:
-                errors.append(
-                    "PartDesign Body must contain exactly one solid; found %d"
-                    % len(shape.Solids)
-                )
-        if errors:
-            invalid_objects.append({{
-                "name": candidate.Name,
-                "state": state,
-                "errors": errors,
-            }})
-    if invalid_objects:
-        raise RuntimeError(
-            f"VALIDATION_FAILED: Recompute failed: {{invalid_objects}}"
-        )
-
-    serialized = []
-    for binding in bindings:
-        obj = objects[binding["object_name"]]
-        expressions = {{
-            path: str(expression)
-            for path, expression in getattr(obj, "ExpressionEngine", [])
-        }}
-        property_path = binding["property_path"]
-        serialized.append({{
-            "object_name": obj.Name,
-            "property_path": property_path,
-            "expression": expressions.get(property_path),
+doc.recompute()
+invalid_objects = []
+for candidate in affected_objects.values():
+    state = list(getattr(candidate, "State", []))
+    errors = []
+    if "Invalid" in state or "Error" in state:
+        errors.append("Object state is invalid")
+    if "Touched" in state:
+        errors.append("Object still needs recompute")
+    shape = getattr(candidate, "Shape", None)
+    if candidate.TypeId == "PartDesign::Body":
+        if shape is None or shape.isNull():
+            errors.append("PartDesign Body has no result shape")
+        elif len(shape.Solids) != 1:
+            errors.append(
+                "PartDesign Body must contain exactly one solid; found %d"
+                % len(shape.Solids)
+            )
+    if errors:
+        invalid_objects.append({{
+            "name": candidate.Name,
+            "state": state,
+            "errors": errors,
         }})
+if invalid_objects:
+    raise RuntimeError(
+        f"VALIDATION_FAILED: Recompute failed: {{invalid_objects}}"
+    )
 
-    object_refs = [
-        {{"name": obj.Name, "label": obj.Label, "type_id": obj.TypeId}}
-        for obj in sorted(objects.values(), key=lambda candidate: candidate.Name)
-    ]
-    affected_bodies = [
-        candidate
-        for candidate in affected_objects.values()
-        if candidate.TypeId == "PartDesign::Body"
-    ]
-    body_tip = None
-    solid_count = None
-    if len(affected_bodies) == 1:
-        body = affected_bodies[0]
-        body_tip = body.Tip.Name if getattr(body, "Tip", None) is not None else None
-        body_shape = getattr(body, "Shape", None)
-        if body_shape is not None and not body_shape.isNull():
-            solid_count = len(body_shape.Solids)
-
-    _result_ = {{
-        "document_ref": {{
-            "name": doc.Name,
-            "revision": document_revision(doc),
-        }},
-        "operation_id": "op_" + uuid.uuid4().hex[:12],
-        "objects": object_refs,
-        "topology_refs": [],
-        "bindings": serialized,
-        "validation": {{
-            "valid": True,
-            "recompute": "valid",
-            "body_tip": body_tip,
-            "solid_count": solid_count,
-            "errors": [],
-            "invalid_objects": [],
-            "checked_objects": sorted(affected_objects),
-        }},
-        "warnings": [],
+serialized = []
+for binding in bindings:
+    obj = objects[binding["object_name"]]
+    expressions = {{
+        path: str(expression)
+        for path, expression in getattr(obj, "ExpressionEngine", [])
     }}
-    doc.commitTransaction()
-except Exception:
-    abort_owned_transaction(doc)
-    doc.recompute()
-    raise
+    property_path = binding["property_path"]
+    serialized.append({{
+        "object_name": obj.Name,
+        "property_path": property_path,
+        "expression": expressions.get(property_path),
+    }})
+
+object_refs = [
+    {{"name": obj.Name, "label": obj.Label, "type_id": obj.TypeId}}
+    for obj in sorted(objects.values(), key=lambda candidate: candidate.Name)
+]
+affected_bodies = [
+    candidate
+    for candidate in affected_objects.values()
+    if candidate.TypeId == "PartDesign::Body"
+]
+body_tip = None
+solid_count = None
+if len(affected_bodies) == 1:
+    body = affected_bodies[0]
+    body_tip = body.Tip.Name if getattr(body, "Tip", None) is not None else None
+    body_shape = getattr(body, "Shape", None)
+    if body_shape is not None and not body_shape.isNull():
+        solid_count = len(body_shape.Solids)
+
+_result_ = {{
+    "document_ref": {{
+        "name": doc.Name,
+        "revision": document_revision(doc),
+    }},
+    "operation_id": "op_" + uuid.uuid4().hex[:12],
+    "objects": object_refs,
+    "topology_refs": [],
+    "bindings": serialized,
+    "validation": {{
+        "valid": True,
+        "recompute": "valid",
+        "body_tip": body_tip,
+        "solid_count": solid_count,
+        "errors": [],
+        "invalid_objects": [],
+        "checked_objects": sorted(affected_objects),
+    }},
+    "warnings": [],
+}}
 """
-        result = await bridge.execute_python(code, transaction=None)
+        result = await bridge.execute_python(code, transaction="Bind Expressions")
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Bind expressions failed")
@@ -653,42 +639,35 @@ if obj is None:
 
 property_path = {property_path!r}
 expression = {expression!r}
-open_owned_transaction(doc, "Set Expression")
-try:
-    obj.setExpression(property_path, expression)
-    doc.recompute()
-    invalid_objects = [
-        {{"name": candidate.Name, "state": list(candidate.State)}}
-        for candidate in doc.Objects
-        if (
-            "Invalid" in candidate.State
-            or "Error" in candidate.State
-            or "Touched" in candidate.State
-        )
-    ]
-    if invalid_objects:
-        raise RuntimeError(f"Recompute failed: {{invalid_objects}}")
-    resulting_expressions = {{
-        path: str(bound_expression)
-        for path, bound_expression in getattr(obj, "ExpressionEngine", [])
-    }}
-    _result_ = {{
-        "document_ref": {{
-            "name": doc.Name,
-            "revision": document_revision(doc),
-        }},
-        "operation_id": "op_" + uuid.uuid4().hex[:12],
-        "object_name": obj.Name,
-        "property_path": property_path,
-        "expression": resulting_expressions.get(property_path),
-    }}
-    doc.commitTransaction()
-except Exception:
-    abort_owned_transaction(doc)
-    doc.recompute()
-    raise
+obj.setExpression(property_path, expression)
+doc.recompute()
+invalid_objects = [
+    {{"name": candidate.Name, "state": list(candidate.State)}}
+    for candidate in doc.Objects
+    if (
+        "Invalid" in candidate.State
+        or "Error" in candidate.State
+        or "Touched" in candidate.State
+    )
+]
+if invalid_objects:
+    raise RuntimeError(f"Recompute failed: {{invalid_objects}}")
+resulting_expressions = {{
+    path: str(bound_expression)
+    for path, bound_expression in getattr(obj, "ExpressionEngine", [])
+}}
+_result_ = {{
+    "document_ref": {{
+        "name": doc.Name,
+        "revision": document_revision(doc),
+    }},
+    "operation_id": "op_" + uuid.uuid4().hex[:12],
+    "object_name": obj.Name,
+    "property_path": property_path,
+    "expression": resulting_expressions.get(property_path),
+}}
 """
-        result = await bridge.execute_python(code, transaction=None)
+        result = await bridge.execute_python(code, transaction="Set Expression")
         if result.success:
             return result.result
         raise bridge_workflow_error(result.error_traceback, "Set expression failed")
