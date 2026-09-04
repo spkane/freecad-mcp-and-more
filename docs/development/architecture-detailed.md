@@ -299,7 +299,7 @@ from mcp.server.fastmcp import FastMCP
 
 from freecad_mcp.config import ServerConfig
 from freecad_mcp.bridge import create_bridge
-from freecad_mcp.tools import register_all_tools
+from freecad_mcp.tools import register_tools
 from freecad_mcp.resources import register_all_resources
 from freecad_mcp.prompts import register_all_prompts
 

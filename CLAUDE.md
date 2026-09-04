@@ -1295,7 +1295,7 @@ else:
     else:
         _result_ = {{"success": False, "error": "Object has no ViewObject"}}
 """
-    result = await bridge.execute_python(code)
+    result = await bridge.execute_python(code, transaction=None)
     if result.success and result.result:
         return result.result
     return {{"success": False, "error": result.error_traceback or "Operation failed"}}
@@ -1313,74 +1313,40 @@ else:
 The following tools in `src/freecad_mcp/tools/view.py` check `FreeCAD.GuiUp`:
 
 - `set_object_visibility`
-- `set_display_mode`
-- `set_object_color`
-- `zoom_in` / `zoom_out`
-- `set_camera_position`
 - `get_screenshot`
+- `set_view_angle`
+- `fit_all`
 
 ### Implementing Transaction Support for Undo/Redo
 
-**CRITICAL**: All MCP tools that modify the FreeCAD document MUST wrap their operations in transactions to enable undo/redo functionality.
+**CRITICAL**: Tools do NOT open their own transactions. The executor owns the
+transaction boundary, so a failed call can never leave one open.
 
-FreeCAD transactions allow users to undo operations if something goes wrong. Without transaction wrapping, changes cannot be undone and users may lose work.
-
-#### Transaction Pattern
-
-```python
-# Wrap modifying operations in a transaction
-doc.openTransaction("Operation Name")
-try:
-    # ... perform modifications ...
-    obj = doc.addObject("Part::Box", "MyBox")
-    obj.Length = 10
-    doc.recompute()
-    doc.commitTransaction()
-except Exception as _txn_err:
-    doc.abortTransaction()
-    raise _txn_err
-```
-
-#### Key Requirements
-
-1. **Wrap all modifying operations**: Any code that creates, modifies, or deletes objects
-2. **Use descriptive transaction names**: The name appears in FreeCAD's Edit > Undo menu
-3. **Commit on success**: Call `doc.commitTransaction()` after successful modifications
-4. **Abort on failure**: Call `doc.abortTransaction()` in the exception handler to rollback changes
-5. **Recompute before commit**: Call `doc.recompute()` to update dependent features
-
-#### Helper Function
-
-The project provides a utility function in `src/freecad_mcp/tools/utils.py`:
+Every `execute_python` call declares its intent with the required, keyword-only
+`transaction` parameter:
 
 ```python
-from freecad_mcp.tools.utils import wrap_with_transaction
+# Mutating: the name appears in FreeCAD's Edit > Undo menu.
+result = await bridge.execute_python(code, transaction="Create Box")
 
-# Wrap code string with transaction handling
-code = wrap_with_transaction(
-    code="obj = doc.addObject('Part::Box', 'MyBox')\n_result_ = {'name': obj.Name}",
-    transaction_name="Create Box",
-    doc_expr="FreeCAD.ActiveDocument",
-)
+# Read-only, export, or view: must not open a transaction.
+result = await bridge.execute_python(code, transaction=None)
 ```
 
-#### Tools Requiring Transactions
+The executor arms `setActiveTransaction(name, persist=True)` before running the
+code and closes it in a `finally`: committing on success, aborting on any
+exception. Generated code must never call `openTransaction`, `commitTransaction`,
+or `abortTransaction`. To roll back deliberately, just raise -- the executor
+aborts.
 
-The following categories of tools MUST use transaction wrapping:
-
-- **Object creation**: `create_box`, `create_cylinder`, `create_object`, etc.
-- **Object modification**: `edit_object`, `set_placement`, `rotate_object`, `scale_object`
-- **Object deletion**: `delete_object`
-- **Boolean operations**: `boolean_operation`, `copy_object`, `mirror_object`
-- **PartDesign operations**: `pad_sketch`, `pocket_sketch`, `fillet_edges`, etc.
-- **Sketch operations**: `add_sketch_rectangle`, `add_sketch_circle`, etc.
-- **Import operations**: `insert_part_from_library`
+`transaction` is required and has no default, so mypy rejects any call site that
+does not declare whether it mutates.
 
 #### Tools NOT Requiring Transactions
 
 - **Read-only operations**: `list_objects`, `inspect_object`, `get_screenshot`
 - **Export operations**: `export_step`, `export_stl` (writes to external files, not the document)
-- **View operations**: `set_view_angle`, `zoom_in`, `fit_all` (don't modify document model)
+- **View operations**: `set_view_angle`, `fit_all` (don't modify document model)
 - **Undo/redo tools**: `undo`, `redo` (manage transactions themselves)
 
 ### Running FreeCAD in Each Mode
@@ -1771,11 +1737,11 @@ Each component has its own `RELEASE_NOTES.md` file that is updated before releas
 
 ## FreeCAD Robust MCP Tools Reference
 
-The default `parametric` profile exposes 54 tools for task-oriented native
-PartDesign construction. Agents create Bodies, native variable sets, complete
-constrained sketches, expression batches, and validated additive or subtractive
-features through typed MCP commands. The broader catalog later in this section
-applies only when `FREECAD_TOOL_PROFILE=full`.
+The server exposes 54 tools for task-oriented native PartDesign construction.
+Agents create Bodies, native variable sets, complete constrained sketches,
+expression batches, and validated additive or subtractive features through typed
+MCP commands. The opt-in full profile has been retired; arbitrary Python
+execution, macros, and generic Part primitives are no longer registered.
 
 ### Discovering Capabilities at Runtime
 
@@ -1815,10 +1781,11 @@ of these files:
    - Only update if adding a completely new tool category
    - The Tools Reference section serves as quick reference for AI agents
 
-**Note on transaction support**: Native variable, sketch, feature, and object
-mutation tools wrap their operations in transactions. Read, persistence,
-screenshot, and export tools have their own documented behavior. Do not claim
-every tool is undoable.
+**Note on transaction support**: Tools do not wrap their own operations. The
+executor opens one transaction per mutating call and aborts it if the call
+raises, so each mutating tool appears as a single undo step. Read, persistence,
+screenshot, and export tools declare `transaction=None` and open none. Do not
+claim every tool is undoable.
 
 ### Default Native Workflow
 
@@ -1832,271 +1799,6 @@ The default profile also includes connection and console tools, FCStd document
 lifecycle operations, STEP/STL export, and GUI review tools. Arbitrary Python,
 macros, and generic primitive constructors are available only in the full
 profile. See `docs/MCP_TOOLS_REFERENCE.md` for exact signatures.
-
-### Legacy Full Profile Tools
-
-The categories below document the opt-in full profile.
-
-### Execution & Debugging Tools
-
-| Tool                         | Description                                                                                                                                           |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `execute_python`             | Execute arbitrary Python code in FreeCAD's context. Use `_result_ = value` to return data. Has access to FreeCAD, App, Part, and all FreeCAD modules. |
-| `get_console_output`         | **Get recent FreeCAD console output** - useful for debugging macros and seeing error messages. Returns up to N lines of console history.              |
-| `get_console_log`            | Alternative console log access with different formatting.                                                                                             |
-| `get_freecad_version`        | Get FreeCAD version, build date, Python version, and GUI availability.                                                                                |
-| `get_connection_status`      | Check MCP bridge connection status, mode, and latency.                                                                                                |
-| `get_mcp_server_environment` | Get MCP server environment info (OS, hostname, Docker detection). Useful for verifying container vs host.                                             |
-
-### Document Management Tools
-
-| Tool                  | Description                                          |
-| --------------------- | ---------------------------------------------------- |
-| `list_documents`      | List all open FreeCAD documents.                     |
-| `get_active_document` | Get information about the currently active document. |
-| `create_document`     | Create a new FreeCAD document.                       |
-| `open_document`       | Open an existing .FCStd file.                        |
-| `save_document`       | Save a document to disk.                             |
-| `close_document`      | Close a document.                                    |
-| `recompute_document`  | Force recomputation of document features.            |
-
-### Object Creation Tools (Part Workbench)
-
-| Tool                      | Description                                                     |
-| ------------------------- | --------------------------------------------------------------- |
-| `list_objects`            | List all objects in a document with their types and properties. |
-| `query_objects`           | Filter and return a bounded page of document objects.           |
-| `inspect_object`          | Get detailed information about a specific object.               |
-| `create_object`           | Create a generic FreeCAD object.                                |
-| `create_box`              | Create a Part::Box primitive.                                   |
-| `create_cylinder`         | Create a Part::Cylinder primitive.                              |
-| `create_sphere`           | Create a Part::Sphere primitive.                                |
-| `create_cone`             | Create a Part::Cone primitive.                                  |
-| `create_torus`            | Create a Part::Torus primitive.                                 |
-| `create_wedge`            | Create a Part::Wedge primitive.                                 |
-| `create_helix`            | Create a Part::Helix primitive.                                 |
-| `create_line`             | Create a Part::Line between two points.                         |
-| `create_plane`            | Create a Part::Plane surface.                                   |
-| `create_ellipse`          | Create a Part::Ellipse curve.                                   |
-| `create_prism`            | Create a Part::Prism (extruded polygon).                        |
-| `create_regular_polygon`  | Create a Part::RegularPolygon (flat polygon face).              |
-
-### Part Shape Operations
-
-| Tool            | Description                                                       |
-| --------------- | ----------------------------------------------------------------- |
-| `shell_object`  | Create a hollow shell from a solid (remove faces, add thickness). |
-| `offset_3d`     | Create an offset copy of a shape (expand/shrink).                 |
-| `slice_shape`   | Slice a shape with a plane, returning cross-section edges.        |
-| `section_shape` | Create a section (intersection) of a shape with a standard plane. |
-
-### Part Compound Operations
-
-| Tool               | Description                                           |
-| ------------------ | ----------------------------------------------------- |
-| `make_compound`    | Combine multiple objects into a single compound.      |
-| `explode_compound` | Separate a compound into individual shape objects.    |
-| `fuse_all`         | Fuse (union) multiple objects into one solid.         |
-| `common_all`       | Create intersection (common volume) of all objects.   |
-
-### Part Wire and Face Operations
-
-| Tool             | Description                                            |
-| ---------------- | ------------------------------------------------------ |
-| `make_wire`      | Create a wire (connected edges) from a list of points. |
-| `make_face`      | Create a face from a closed wire or edge object.       |
-| `extrude_shape`  | Extrude a 2D shape along a direction vector.           |
-| `revolve_shape`  | Revolve a 2D shape around an axis.                     |
-
-### Part Loft and Sweep
-
-| Tool         | Description                                           |
-| ------------ | ----------------------------------------------------- |
-| `part_loft`  | Create a loft (skin) through multiple profile shapes. |
-| `part_sweep` | Sweep a profile along a spine path.                   |
-
-### Object Manipulation Tools
-
-| Tool                | Description                                     |
-| ------------------- | ----------------------------------------------- |
-| `edit_object`       | Modify object properties.                       |
-| `delete_object`     | Delete an object from the document.             |
-| `boolean_operation` | Perform union, cut, or intersection operations. |
-| `set_placement`     | Set object position and rotation.               |
-| `scale_object`      | Scale an object by a factor.                    |
-| `rotate_object`     | Rotate an object around an axis.                |
-| `copy_object`       | Create a copy of an object.                     |
-| `mirror_object`     | Mirror an object across a plane.                |
-
-### Selection Tools
-
-| Tool              | Description                     |
-| ----------------- | ------------------------------- |
-| `get_selection`   | Get currently selected objects. |
-| `set_selection`   | Select specific objects.        |
-| `clear_selection` | Clear the current selection.    |
-
-### PartDesign Tools (Parametric Modeling)
-
-| Tool                        | Description                                       |
-| --------------------------- | ------------------------------------------------- |
-| `create_partdesign_body`    | Create a new PartDesign::Body container.          |
-| `create_constrained_sketch` | Create a complete constrained sketch atomically.  |
-| `create_sketch`             | Create a sketch attached to a plane or face.      |
-| `pad_sketch`                | Extrude a sketch (additive).                      |
-| `pocket_sketch`             | Cut into solid using a sketch (subtractive).      |
-| `revolution_sketch`         | Revolve a sketch around an axis (additive).       |
-| `groove_sketch`             | Cut by revolving a sketch (subtractive).          |
-| `loft_sketches`             | Create a loft between multiple sketches.          |
-| `sweep_sketch`              | Sweep a sketch along a path.                      |
-| `subtractive_loft`          | Cut material with a loft through sketches.        |
-| `subtractive_pipe`          | Cut material by sweeping a sketch along a path.   |
-| `create_hole`               | Create parametric holes from sketch points.       |
-| `fillet_edges`              | Add fillets (rounded edges).                      |
-| `chamfer_edges`             | Add chamfers (beveled edges).                     |
-| `draft_feature`             | Add draft angle to faces (for mold release).      |
-| `thickness_feature`         | Shell a solid by removing faces and adding walls. |
-
-### PartDesign Datum Features
-
-| Tool                  | Description                                             |
-| --------------------- | ------------------------------------------------------- |
-| `create_datum_plane`  | Create a reference plane offset from a base plane.      |
-| `create_datum_line`   | Create a reference line/axis in the body.               |
-| `create_datum_point`  | Create a reference point at a specific position.        |
-
-### Pattern Tools
-
-| Tool               | Description                                |
-| ------------------ | ------------------------------------------ |
-| `linear_pattern`   | Create linear pattern of features.         |
-| `polar_pattern`    | Create polar/circular pattern of features. |
-| `mirrored_feature` | Mirror a feature across a plane.           |
-
-### Sketcher Geometry Tools
-
-| Tool                   | Description                                       |
-| ---------------------- | ------------------------------------------------- |
-| `add_sketch_line`      | Add a line to a sketch.                           |
-| `add_sketch_rectangle` | Add a rectangle to a sketch.                      |
-| `add_sketch_circle`    | Add a circle to a sketch.                         |
-| `add_sketch_arc`       | Add an arc to a sketch.                           |
-| `add_sketch_point`     | Add a point to a sketch (for hole placement).     |
-| `add_sketch_ellipse`   | Add an ellipse to a sketch.                       |
-| `add_sketch_polygon`   | Add a regular polygon to a sketch.                |
-| `add_sketch_slot`      | Add a slot (rounded rectangle) to a sketch.       |
-| `add_sketch_bspline`   | Add a B-spline curve through control points.      |
-
-### Sketcher Constraint Tools
-
-| Tool                       | Description                                         |
-| -------------------------- | --------------------------------------------------- |
-| `add_sketch_constraint`    | Add any constraint type (general interface).        |
-| `constrain_horizontal`     | Constrain a line to be horizontal.                  |
-| `constrain_vertical`       | Constrain a line to be vertical.                    |
-| `constrain_coincident`     | Make two points coincident (same location).         |
-| `constrain_parallel`       | Constrain two lines to be parallel.                 |
-| `constrain_perpendicular`  | Constrain two lines to be perpendicular.            |
-| `constrain_tangent`        | Constrain two curves to be tangent.                 |
-| `constrain_equal`          | Constrain two elements to have equal length/radius. |
-| `constrain_distance`       | Set distance between two elements.                  |
-| `constrain_distance_x`     | Set horizontal distance from a point.               |
-| `constrain_distance_y`     | Set vertical distance from a point.                 |
-| `constrain_radius`         | Set the radius of a circle or arc.                  |
-| `constrain_angle`          | Set the angle of a line or between two lines.       |
-| `constrain_fix`            | Fix a point or geometry at its current position.    |
-
-### Sketcher Operations
-
-| Tool                       | Description                                              |
-| -------------------------- | -------------------------------------------------------- |
-| `add_external_geometry`    | Reference external geometry (edges/faces) in sketch.     |
-| `delete_sketch_geometry`   | Delete a geometry element from a sketch.                 |
-| `delete_sketch_constraint` | Delete a constraint from a sketch.                       |
-| `get_sketch_info`          | Get detailed info about sketch geometry and constraints. |
-| `toggle_construction`      | Toggle geometry between normal and construction mode.    |
-
-### Native Variable Tools
-
-| Tool               | Description                                                      |
-| ------------------ | ---------------------------------------------------------------- |
-| `define_variables` | Batch-create or update typed properties in an `App::VarSet`.     |
-| `get_variables`    | Inspect variable values, units, property types, and expressions. |
-| `bind_expressions` | Apply related expression bindings in one atomic transaction.     |
-| `set_expression`   | Bind one feature property or sketch dimension for local repair.  |
-
-### View & GUI Tools (Require GUI Mode)
-
-| Tool                    | Description                                                 |
-| ----------------------- | ----------------------------------------------------------- |
-| `get_screenshot`        | Capture a screenshot of the 3D view. **Requires GUI mode.** |
-| `set_view_angle`        | Set camera to standard views (front, top, isometric, etc.). |
-| `fit_all`               | Zoom to fit all objects in view.                            |
-| `zoom_in` / `zoom_out`  | Adjust zoom level.                                          |
-| `set_camera_position`   | Set exact camera position and orientation.                  |
-| `set_object_visibility` | Show/hide objects. **Requires GUI mode.**                   |
-| `set_display_mode`      | Set display mode (wireframe, shaded, etc.).                 |
-| `set_object_color`      | Change object colors. **Requires GUI mode.**                |
-| `list_workbenches`      | List available FreeCAD workbenches.                         |
-| `activate_workbench`    | Switch to a different workbench.                            |
-
-### Undo/Redo Tools
-
-| Tool                   | Description                         |
-| ---------------------- | ----------------------------------- |
-| `undo`                 | Undo the last operation.            |
-| `redo`                 | Redo an undone operation.           |
-| `get_undo_redo_status` | Get available undo/redo operations. |
-
-### Validation Tools
-
-| Tool                | Description                                                                           |
-| ------------------- | ------------------------------------------------------------------------------------- |
-| `validate_object`   | Check object health (shape validity, error states, recompute status).                 |
-| `validate_document` | Check health of all objects in document, return summary of invalid/error objects.     |
-| `undo_if_invalid`   | Check document health and automatically undo last operation if invalid objects exist. |
-| `safe_execute`      | Execute Python code with automatic validation and rollback on failure.                |
-
-### Export/Import Tools
-
-| Tool          | Description                                        |
-| ------------- | -------------------------------------------------- |
-| `export_step` | Export objects to STEP format.                     |
-| `export_stl`  | Export objects to STL format (for 3D printing).    |
-| `export_3mf`  | Export objects to 3MF format (modern 3D printing). |
-| `export_obj`  | Export objects to OBJ format.                      |
-| `export_iges` | Export objects to IGES format.                     |
-| `import_step` | Import STEP files.                                 |
-| `import_stl`  | Import STL files.                                  |
-
-### Parts Library Tools
-
-| Tool                       | Description                                      |
-| -------------------------- | ------------------------------------------------ |
-| `list_parts_library`       | List available parts in FreeCAD's parts library. |
-| `insert_part_from_library` | Insert a part from the library.                  |
-
-### Example: Debugging a Macro
-
-To debug issues with a macro running in FreeCAD:
-
-```python
-# Get recent console output to see errors
-console_output = await get_console_output(lines=50)
-
-# Or execute Python to check state
-result = await execute_python('''
-doc = FreeCAD.ActiveDocument
-if doc:
-    _result_ = {
-        "doc_name": doc.Name,
-        "objects": [obj.Name for obj in doc.Objects],
-        "errors": [obj.Name for obj in doc.Objects if hasattr(obj, 'isValid') and not obj.isValid()]
-    }
-else:
-    _result_ = {"error": "No active document"}
-''')
-```
 
 ### Example: Creating a Simple Part
 

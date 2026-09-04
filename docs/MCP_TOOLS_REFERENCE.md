@@ -235,9 +235,10 @@ support visual review in GUI mode.
 - `freecad://status`: Live bridge and GUI status.
 - `freecad://active-document`: Active native document summary.
 
-## Full Profile
+## Retired Full Profile
 
-Set `FREECAD_TOOL_PROFILE=full` to register 136 tools: the historical 130-tool
-interface plus six native variable and task-oriented workflow tools. It includes
-arbitrary Python execution, generic Part operations, extra formats, and the
-remaining specialized wrappers.
+The opt-in full profile has been retired. The tools it added -- arbitrary Python
+execution, generic Part primitives, macro management, and the remaining
+specialized wrappers -- were unreachable through the default profile and have
+been removed. `FREECAD_TOOL_PROFILE` is no longer read; the server registers one
+interface, documented above.

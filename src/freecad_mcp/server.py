@@ -171,41 +171,21 @@ async def lifespan(_server: FastMCP) -> AsyncIterator[None]:
             _bridge = None
 
 
-TOOL_PROFILE = os.environ.get("FREECAD_TOOL_PROFILE", "parametric").strip().lower()
-if TOOL_PROFILE not in {"parametric", "full"}:
-    raise ValueError(
-        f"FREECAD_TOOL_PROFILE must be 'parametric' or 'full', not {TOOL_PROFILE!r}"
-    )
-
-
-def _instructions_for_profile(profile: str) -> str | None:
-    """Return focused server guidance only for the parametric profile."""
-    return PARAMETRIC_PARTS_GUIDANCE if profile == "parametric" else None
-
-
 # Create the Robust MCP Server instance with lifespan
 mcp = FastMCP(
     name="freecad-mcp",
-    instructions=_instructions_for_profile(TOOL_PROFILE),
+    instructions=PARAMETRIC_PARTS_GUIDANCE,
     lifespan=lifespan,
 )
 
 
 def register_all_components() -> None:
     """Register all MCP components (tools, resources, prompts)."""
-    from freecad_mcp.tools import register_all_tools, register_parametric_tools
+    from freecad_mcp.prompts.parametric import register_prompts
+    from freecad_mcp.resources.parametric import register_resources
+    from freecad_mcp.tools import register_tools
 
-    if TOOL_PROFILE == "parametric":
-        register_parametric_tools(mcp, get_bridge)
-    else:
-        register_all_tools(mcp, get_bridge)
-
-    if TOOL_PROFILE == "parametric":
-        from freecad_mcp.prompts.parametric import register_prompts
-        from freecad_mcp.resources.parametric import register_resources
-    else:
-        from freecad_mcp.prompts import register_prompts
-        from freecad_mcp.resources import register_resources
+    register_tools(mcp, get_bridge)
 
     register_resources(mcp, get_bridge)
     register_prompts(mcp, get_bridge)
@@ -340,8 +320,6 @@ Environment Variables:
   FREECAD_HTTP_PORT      Port for HTTP transport (default: 8000)
   FREECAD_LOG_LEVEL      Logging level: DEBUG, INFO, WARNING, ERROR
                           (default: INFO)
-  FREECAD_TOOL_PROFILE   Tool interface: parametric or full
-                         (default: parametric)
 
 Examples:
   # Start with default settings (XML-RPC mode, stdio transport)
@@ -460,9 +438,6 @@ def main() -> None:
     logger.info("Instance ID: %s", INSTANCE_ID)
     logger.info("Mode: %s", config.mode.value)
     logger.info("Transport: %s", config.transport.value)
-    logger.info(
-        "Tool profile: %s", os.environ.get("FREECAD_TOOL_PROFILE", "parametric")
-    )
 
     # Run the server
     if config.transport == TransportType.HTTP:

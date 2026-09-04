@@ -1,6 +1,6 @@
 # Transaction Boundary Design
 
-Status: proposed
+Status: Phase 1 implemented
 Date: 2026-09-01
 Branch: `integration/freecad-compatibility`
 

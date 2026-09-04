@@ -64,7 +64,6 @@ def register_resources(mcp: Any, get_bridge: Any) -> None:
                     "export and re-import STEP",
                     "inspect deterministic renders",
                 ],
-                "full_profile_opt_in": "FREECAD_TOOL_PROFILE=full",
             },
             indent=2,
         )

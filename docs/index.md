@@ -14,8 +14,6 @@ This project provides an [MCP (Model Context Protocol)](https://modelcontextprot
   resources for consistent agent behavior
 - **Multiple Connection Modes** - XML-RPC (recommended), JSON-RPC socket, or embedded (Linux only)
 - **GUI & Headless Support** - Full modeling in headless mode, plus screenshots/colors in GUI mode
-- **Opt-in full profile** - Access legacy generic primitives, arbitrary Python,
-  and macro development with `FREECAD_TOOL_PROFILE=full`
 
 ---
 
@@ -54,31 +52,14 @@ See [Connection Modes](guide/connection-modes.md) for details on choosing the ri
 
 The Robust MCP Server works with FreeCAD in both GUI and headless mode:
 
-| Feature                  | Headless | GUI |
-| ------------------------ | -------- | --- |
-| Object creation          | Yes      | Yes |
-| Boolean operations*      | Yes      | Yes |
-| Export (STEP, STL, etc.) | Yes      | Yes |
-| Screenshots              | No       | Yes |
-| Object colors/visibility | No       | Yes |
-| Camera control           | No       | Yes |
-
-\* Boolean operations are available in the opt-in full profile. The default
-parametric profile uses native PartDesign features instead.
-
----
-
-## Legacy Full Profile
-
-The 158-tool full surface is available with `FREECAD_TOOL_PROFILE=full`. It
-includes the historical interface and tools for working with FreeCAD macros:
-
-- **List macros** - Discover available macros in your FreeCAD installation
-- **Run macros** - Execute macros with parameter passing
-- **Create macros** - Generate new macros from templates or custom code
-
-See [Macros Guide](guide/macros.md) for details. New agent workflows should use
-the smaller default parametric profile.
+| Feature                    | Headless | GUI |
+| -------------------------- | -------- | --- |
+| Object creation            | Yes      | Yes |
+| Native PartDesign features | Yes      | Yes |
+| Export (STEP, STL, etc.)   | Yes      | Yes |
+| Screenshots                | No       | Yes |
+| Object colors/visibility   | No       | Yes |
+| Camera control             | No       | Yes |
 
 ---
 

@@ -23,9 +23,8 @@ plan parameters, Origin planes, and datums
 -> export STEP and inspect deterministic renders
 ```
 
-The native FCStd feature tree is authoritative. The default profile does not
-expose `execute_python`, `safe_execute`, macros, generic Part primitives, or a
-saved-script runner.
+The native FCStd feature tree is authoritative. The server does not expose
+`execute_python`, macros, generic Part primitives, or a saved-script runner.
 
 ## Tool Catalog
 
@@ -122,18 +121,6 @@ For each governing edit:
 
 Export only the validated final Body or Tip. Re-import STEP in a clean document
 when BREP interchange is an acceptance requirement.
-
-## Full Profile
-
-The full profile exposes 136 tools: the historical interface plus native
-variable tools:
-
-```bash
-FREECAD_TOOL_PROFILE=full freecad-mcp
-```
-
-The full profile restores arbitrary Python execution, generic Part operations,
-extra formats, and less common PartDesign helpers.
 
 ## Next Steps
 

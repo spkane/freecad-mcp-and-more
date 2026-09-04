@@ -11,8 +11,7 @@ from freecad_mcp.bridge.base import ConnectionStatus, DocumentInfo
 from freecad_mcp.guidance import PARAMETRIC_PARTS_GUIDANCE
 from freecad_mcp.tools import (
     PARAMETRIC_TOOL_NAMES,
-    register_all_tools,
-    register_parametric_tools,
+    register_tools,
 )
 
 
@@ -73,7 +72,7 @@ def test_parametric_profile_registers_only_declared_tools() -> None:
     async def get_bridge() -> AsyncMock:
         return AsyncMock()
 
-    register_parametric_tools(mcp, get_bridge)
+    register_tools(mcp, get_bridge)
 
     assert set(mcp._registered_tools) == set(PARAMETRIC_TOOL_NAMES)
     assert len(mcp._registered_tools) == 54
@@ -96,23 +95,9 @@ def test_parametric_profile_registers_only_declared_tools() -> None:
     assert "run_macro" not in mcp._registered_tools
 
 
-def test_full_profile_preserves_historical_tool_surface() -> None:
-    """The opt-in full profile should retain all existing typed tools."""
-    mcp = _tool_registry()
-
-    async def get_bridge() -> AsyncMock:
-        return AsyncMock()
-
-    register_all_tools(mcp, get_bridge)
-
-    assert len(mcp._registered_tools) == 54
-    assert "execute_python" not in mcp._registered_tools
-    assert "run_freecad_script" not in mcp._registered_tools
-
-
 @pytest.mark.asyncio
-async def test_full_capabilities_match_registered_tools_and_prompts() -> None:
-    """The full-profile discovery catalog must not advertise stale names."""
+async def test_legacy_capabilities_match_registered_tools_and_prompts() -> None:
+    """The legacy discovery catalog must not advertise stale names."""
     from freecad_mcp.prompts.freecad import register_prompts
     from freecad_mcp.resources.freecad import register_resources
 
@@ -120,7 +105,7 @@ async def test_full_capabilities_match_registered_tools_and_prompts() -> None:
         return AsyncMock()
 
     tool_mcp = _tool_registry()
-    register_all_tools(tool_mcp, get_bridge)
+    register_tools(tool_mcp, get_bridge)
 
     resource_mcp = _resource_registry()
     register_resources(resource_mcp, get_bridge)
@@ -141,12 +126,11 @@ async def test_full_capabilities_match_registered_tools_and_prompts() -> None:
     assert catalog_prompts == set(prompt_mcp._registered_prompts)
 
 
-def test_server_instructions_follow_selected_profile() -> None:
-    """The full profile should not receive parametric-only instructions."""
-    from freecad_mcp.server import _instructions_for_profile
+def test_server_instructions_are_the_parametric_guidance() -> None:
+    """The server presents the parametric guidance; there is no other profile."""
+    from freecad_mcp.server import mcp
 
-    assert _instructions_for_profile("parametric") == PARAMETRIC_PARTS_GUIDANCE
-    assert _instructions_for_profile("full") is None
+    assert mcp.instructions == PARAMETRIC_PARTS_GUIDANCE
 
 
 def test_guidance_contains_cross_workflow_quality_gates() -> None:

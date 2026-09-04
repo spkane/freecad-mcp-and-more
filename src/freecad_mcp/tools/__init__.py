@@ -27,12 +27,11 @@ from freecad_mcp.tools.view import register_view_tools
 
 __all__ = [
     "PARAMETRIC_TOOL_NAMES",
-    "register_all_tools",
     "register_document_tools",
     "register_execution_tools",
     "register_export_tools",
     "register_object_tools",
-    "register_parametric_tools",
+    "register_tools",
     "register_partdesign_tools",
     "register_validation_tools",
     "register_variable_tools",
@@ -120,10 +119,8 @@ class _FilteredToolRegistry:
         return decorator
 
 
-def register_parametric_tools(
-    mcp: Any, get_bridge_func: Callable[[], Awaitable[Any]]
-) -> None:
-    """Register the focused native PartDesign tool interface.
+def register_tools(mcp: Any, get_bridge_func: Callable[[], Awaitable[Any]]) -> None:
+    """Register the native PartDesign tool interface.
 
     Args:
         mcp: The FastMCP server instance.
@@ -145,20 +142,3 @@ def register_parametric_tools(
         raise RuntimeError(
             f"Parametric tool profile contains unknown tools: {missing_list}"
         )
-
-
-def register_all_tools(mcp: Any, get_bridge_func: Callable[[], Awaitable[Any]]) -> None:
-    """Register all FreeCAD tools with the Robust MCP Server.
-
-    Args:
-        mcp: The FastMCP (Robust MCP Server) instance (Any due to lack of stubs).
-        get_bridge_func: Async function returning the active bridge connection.
-    """
-    register_execution_tools(mcp, get_bridge_func)
-    register_document_tools(mcp, get_bridge_func)
-    register_object_tools(mcp, get_bridge_func)
-    register_partdesign_tools(mcp, get_bridge_func)
-    register_variable_tools(mcp, get_bridge_func)
-    register_export_tools(mcp, get_bridge_func)
-    register_view_tools(mcp, get_bridge_func)
-    register_validation_tools(mcp, get_bridge_func)

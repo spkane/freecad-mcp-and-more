@@ -29,8 +29,7 @@ Returns the exact default interface as JSON:
     "authoritative_artifact": "native FCStd PartDesign feature tree",
     "construction": "task-oriented MCP sketch and feature tools",
     "python_execution_exposed": false
-  },
-  "full_profile_opt_in": "FREECAD_TOOL_PROFILE=full"
+  }
 }
 ```
 
