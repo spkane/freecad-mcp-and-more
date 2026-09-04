@@ -66,7 +66,7 @@ jobs:
           version: "latest"
 
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install 3.14
 
       - name: Cache uv dependencies
         uses: actions/cache@v4
@@ -79,7 +79,7 @@ jobs:
             ${{ runner.os }}-uv-
 
       - name: Install build dependencies
-        run: uv sync --all-extras
+        run: uv sync
 
       - name: Build package
         env:
@@ -148,7 +148,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.11"]
+        python-version: ["3.14"]
 
     steps:
       - name: Set up Python ${{ matrix.python-version }}
@@ -237,8 +237,8 @@ jobs:
 
       - name: Install project dependencies
         run: |
-          uv python install 3.11
-          uv sync --all-extras
+          uv python install 3.14
+          uv sync
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

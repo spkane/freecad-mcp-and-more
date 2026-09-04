@@ -6,17 +6,17 @@ This is a Python project that provides an MCP (Model Context Protocol) server fo
 
 ### Critical: Python Version Must Match FreeCAD
 
-**CRITICAL**: This project **MUST** use the same Python version that the current stable FreeCAD release bundles internally. FreeCAD embeds a specific Python version (e.g., `libpython3.11.dylib`), and using a different Python version causes **fatal crashes** (SIGSEGV) due to ABI incompatibility.
+**CRITICAL**: This project **MUST** use the same Python version that your FreeCAD links against. FreeCAD embeds a specific Python version (e.g., `libpython3.14.so`), and using a different Python version causes **fatal crashes** (SIGSEGV) due to ABI incompatibility in embedded mode.
 
 Before changing the Python version in `.mise.toml` or `pyproject.toml`:
 
 1. Check which Python version FreeCAD bundles:
    - macOS: `ls /Applications/FreeCAD.app/Contents/Resources/lib/libpython*`
    - Linux: `ls /usr/lib/freecad/lib/libpython*` or check FreeCAD's Python console
-1. The Python minor version (e.g., 3.11) **must match exactly**
-1. Using Python 3.12+ with FreeCAD that bundles Python 3.11 will crash on `import FreeCAD`
+1. The Python minor version **must match exactly**
+1. A mismatch crashes on `import FreeCAD` — this binds embedded mode only; the `xmlrpc` and `socket` modes talk to FreeCAD's own interpreter over the wire and are unaffected
 
-Current requirement: **Python 3.11** (matching FreeCAD 1.0.x bundled Python)
+Current requirement: **Python 3.14** (matching FreeCAD 1.1.x, which links `libpython3.14`). FreeCAD 1.0.x linked `libpython3.11`. Pinned in `.python-version` and `.mise.toml`.
 
 ### FreeCAD Connection Modes
 
@@ -31,7 +31,7 @@ This MCP server supports three connection modes. **Embedded mode does NOT work o
 **Embedded mode testing:** Embedded mode is tested via mocked unit tests in CI. It does not have integration tests with actual FreeCAD because that would require running FreeCAD in-process on Linux CI runners. For production use, prefer `xmlrpc` or `socket` modes which have full integration test coverage.
 
 **Why embedded mode fails on macOS:**
-FreeCAD's `FreeCAD.so` library links to `@rpath/libpython3.11.dylib` (FreeCAD's bundled Python). When you try to import it from a different Python interpreter (even the same version), it causes a crash because the Python runtime state is incompatible.
+FreeCAD's `FreeCAD.so` library links to `@rpath/libpython3.14.dylib` (FreeCAD's bundled Python). When you try to import it from a different Python interpreter (even the same version), it causes a crash because the Python runtime state is incompatible.
 
 **Recommended setup for macOS/Windows:**
 
@@ -761,7 +761,7 @@ This catches issues early and ensures code quality standards are met. Never skip
 
 Keep these tools at their latest stable versions:
 
-- Python: **3.11** (must match FreeCAD's bundled Python - see "Critical: Python Version Must Match FreeCAD" above)
+- Python: **3.14** (must match FreeCAD's bundled Python - see "Critical: Python Version Must Match FreeCAD" above)
 - Ruff: Latest stable
 - MyPy: Latest stable
 - Pytest: Latest stable

@@ -12,7 +12,7 @@ project_root := justfile_directory()
 
 # Install all project dependencies (Python packages + dev tools)
 install-deps:
-    cd {{project_root}} && uv sync --all-extras
+    cd {{project_root}} && uv sync
     @echo ""
     @echo "Dependencies installed!"
     @echo ""
@@ -38,7 +38,7 @@ update-deps:
 
     echo "Updating Python dependencies..."
     uv lock --upgrade
-    uv sync --all-extras
+    uv sync
 
     echo ""
     echo "Updating pre-commit hooks..."

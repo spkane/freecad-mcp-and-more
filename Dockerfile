@@ -18,7 +18,7 @@
 # =============================================================================
 # Stage 1: Builder - Install dependencies and build the package
 # =============================================================================
-FROM python:3.11-alpine AS builder
+FROM python:3.14-alpine AS builder
 
 # Install build dependencies for compiling Python packages with native extensions
 # hadolint ignore=DL3018
@@ -55,7 +55,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # =============================================================================
 # Stage 2: Runtime - Minimal image for running the server
 # =============================================================================
-FROM python:3.11-alpine AS runtime
+FROM python:3.14-alpine AS runtime
 
 # Labels for container metadata (OCI Image Spec)
 # Note: version, revision, and created are set dynamically in CI/CD workflows
@@ -67,7 +67,7 @@ LABEL org.opencontainers.image.title="FreeCAD Robust MCP Server" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.vendor="Sean P. Kane" \
       org.opencontainers.image.authors="Sean P. Kane <spkane@gmail.com>" \
-      org.opencontainers.image.base.name="python:3.11-alpine"
+      org.opencontainers.image.base.name="python:3.14-alpine"
 
 # Upgrade all Alpine packages to fix CVEs in base image (zlib, busybox, etc.)
 # This ensures we get security patches even if the base image is slightly stale
@@ -85,10 +85,10 @@ RUN addgroup -g 1000 mcpuser && \
 # This eliminates the vulnerabilities without affecting functionality.
 # hadolint ignore=DL3013
 RUN pip uninstall -y pip setuptools wheel 2>/dev/null || true && \
-    rm -rf /usr/local/lib/python3.11/site-packages/pip* \
-           /usr/local/lib/python3.11/site-packages/setuptools* \
-           /usr/local/lib/python3.11/site-packages/wheel* \
-           /usr/local/lib/python3.11/site-packages/pkg_resources*
+    rm -rf /usr/local/lib/python3.14/site-packages/pip* \
+           /usr/local/lib/python3.14/site-packages/setuptools* \
+           /usr/local/lib/python3.14/site-packages/wheel* \
+           /usr/local/lib/python3.14/site-packages/pkg_resources*
 
 # Copy virtual environment from builder
 COPY --from=builder /opt/venv /opt/venv

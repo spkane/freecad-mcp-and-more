@@ -91,7 +91,7 @@ jobs:
 
               # Install project dependencies
               echo "Installing dependencies..."
-              uv sync --all-extras
+              uv sync
 
               # Start FreeCAD GUI with MCP bridge
               echo "Starting FreeCAD GUI with MCP bridge..."

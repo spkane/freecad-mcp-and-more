@@ -54,49 +54,11 @@ classifiers = [
 ]
 
 dependencies = [
-    "mcp>=1.25.0",
+    "mcp>=1.25.0,<2",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    # Testing
-    "pytest>=8.3.0",
-    "pytest-asyncio>=0.25.0",
-    "pytest-cov>=6.0.0",
-    "pytest-timeout>=2.3.0",
-    "pytest-watch>=4.2.0",
-    "psutil>=5.9.0",
-    # Linting and formatting
-    "mypy>=1.14.0",
-    "ruff>=0.8.0",
-    # Type stubs for FreeCAD/Qt development
-    "freecad-stubs>=1.0.21",
-    "PySide6-stubs>=6.7.0",
-    # Security scanning
-    "bandit[toml]>=1.8.0",
-    "safety>=3.2.0",
-    "detect-secrets>=1.5.0",
-    # Pre-commit and commit conventions
-    "pre-commit>=4.0.0",
-    "commitizen>=4.1.0",
-    # Documentation
-    "mkdocs>=1.6.0",
-    "mkdocs-material>=9.7.1",
-    "mkdocstrings[python]>=0.27.0",
-    "mkdocs-git-revision-date-localized-plugin>=1.2.0",
-    "mkdocs-minify-plugin>=0.8.0",
-    "mkdocs-redirects>=1.2.0",
-    "mkdocs-glightbox>=0.4.0",
-    "mkdocs-macros-plugin>=1.0.0",
-    "mike>=2.1.0",
-    "md-toc>=9.0.0",
-    "codespell>=2.3.0",
-    # Publishing
-    "twine>=6.0.0",
-    "build>=1.2.0",
-]
 
 [project.scripts]
 freecad-mcp = "freecad_mcp.server:main"
@@ -349,3 +311,42 @@ major_version_zero = true
 #   - robust-mcp-workbench-vX.Y.Z   (FreeCAD workbench)
 # Use `just release::tag-<component> <version>` to create release tags.
 # Commitizen is used for commit message validation and changelog generation.
+
+[dependency-groups]
+dev = [
+    # Testing
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "pytest-timeout>=2.3.0",
+    "pytest-watch>=4.2.0",
+    "psutil>=5.9.0",
+    # Linting and formatting
+    "mypy>=1.14.0",
+    "ruff>=0.8.0",
+    # Type stubs for FreeCAD/Qt development
+    "freecad-stubs>=1.0.21",
+    "PySide6-stubs>=6.7.0",
+    # Security scanning
+    "bandit[toml]>=1.8.0",
+    "safety>=3.2.0",
+    "detect-secrets>=1.5.0",
+    # Pre-commit and commit conventions
+    "pre-commit>=4.6.1",
+    "commitizen>=4.1.0",
+    # Documentation
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.7.1",
+    "mkdocstrings[python]>=0.27.0",
+    "mkdocs-git-revision-date-localized-plugin>=1.2.0",
+    "mkdocs-minify-plugin>=0.8.0",
+    "mkdocs-redirects>=1.2.0",
+    "mkdocs-glightbox>=0.4.0",
+    "mkdocs-macros-plugin>=1.0.0",
+    "mike>=2.1.0",
+    "md-toc>=9.0.0",
+    "codespell>=2.3.0",
+    # Publishing
+    "twine>=6.0.0",
+    "build>=1.2.0",
+]

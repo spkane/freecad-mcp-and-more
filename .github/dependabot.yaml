@@ -51,9 +51,9 @@ updates:
     commit-message:
       prefix: "deps(docker)"
     ignore:
-      # CRITICAL: Python version must match FreeCAD's bundled Python (currently 3.11)
+      # CRITICAL: Python version must match FreeCAD's bundled Python (currently 3.14)
       # Using a different Python version causes ABI incompatibility crashes.
-      # Only allow patch updates (e.g., 3.11-slim to 3.11.x-slim), not minor/major.
+      # Only allow patch updates (e.g., 3.14-slim to 3.14.x-slim), not minor/major.
       - dependency-name: "python"
         update-types:
           - "version-update:semver-major"

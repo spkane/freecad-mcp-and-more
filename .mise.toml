@@ -2,14 +2,16 @@
 # https://mise.jdx.dev/
 
 [tools]
-# Python 3.11 is required for embedded FreeCAD mode - FreeCAD bundles libpython3.11
+# Must match the Python your FreeCAD links for embedded mode.
+# FreeCAD 1.1.x links libpython3.14; FreeCAD 1.0.x linked libpython3.11.
+# Verify with: ldd $(dirname $(which freecad))/../lib/freecad/lib/FreeCAD.so | grep python
 # Using a different Python version causes ABI incompatibility crashes
-python = "3.11"
+python = "3.14"
 # Pin tool versions for reproducible CI builds
 # Update these periodically with: mise upgrade
 uv = "0.9"              # uv package manager
 just = "1.43"           # task runner
-pre-commit = "4.5"      # pre-commit hooks
+pre-commit = "4.6"      # pre-commit hooks
 github-cli = "2.74"     # GitHub CLI for PR/issue management
 
 # Security and code quality tools

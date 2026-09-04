@@ -409,7 +409,7 @@ status:
             echo "  For system-wide install: just install::mcp-server"
         else
             echo "○ Robust MCP Server: DEV SOURCE AVAILABLE (needs setup)"
-            echo "  Setup: uv sync --all-extras"
+            echo "  Setup: uv sync"
             echo "  Then run: just mcp::run"
         fi
     else
