@@ -316,9 +316,8 @@ def register_resources(mcp: Any, get_bridge: Any) -> None:
                     "pattern": """After any operation that creates or modifies geometry:
 1. Call validate_object(object_name) to check shape validity
 2. Check the 'is_valid' field in the response
-3. If invalid, use undo() to revert and try a different approach
-4. For complex operations, use safe_execute() which auto-validates""",
-                    "tools": ["validate_object", "validate_document", "safe_execute"],
+3. If invalid, use undo() to revert and try a different approach""",
+                    "tools": ["validate_object", "validate_document"],
                 },
                 "partdesign_workflow": {
                     "description": "Proper PartDesign workflow for parametric parts",
@@ -353,27 +352,18 @@ Built-in transaction support:
 3. Transaction names appear in FreeCAD's undo history
 
 For complex or risky operations:
-1. Use safe_execute() for automatic validation + rollback
-2. If validation fails after execution, it automatically undoes
-3. Use undo_if_invalid() to check and undo in one call
-4. Check get_undo_redo_status() to see available undo steps
-
-Example - automatic rollback on failure:
-safe_execute(
-    code="... complex operation ...",
-    validate_after=True,
-    auto_undo_on_failure=True
-)
+1. Every mutating tool runs inside its own transaction, opened and closed by
+   the executor. A tool that raises aborts its transaction, so a failed call
+   leaves the document exactly as it was - no manual rollback needed.
+2. For a call that succeeds but produces bad geometry, use validate_object()
+   or validate_document(), then undo() to revert.
 
 Example - manual undo:
-create_box(length=10, width=10, height=10)  # Can be undone
-undo()  # Reverts the box creation""",
+pad_sketch(sketch_name="Sketch", length=10)  # Can be undone
+undo()  # Reverts the pad""",
                     "tools": [
-                        "safe_execute",
                         "undo",
                         "redo",
-                        "undo_if_invalid",
-                        "get_undo_redo_status",
                     ],
                 },
             },
@@ -400,8 +390,6 @@ sketch.MapMode = 'FlatFace'""",
                 "gui_only_features": [
                     "get_screenshot() - capturing views",
                     "set_object_visibility() - show/hide objects",
-                    "set_object_color() - color changes",
-                    "set_display_mode() - wireframe/shaded",
                     "Camera controls (zoom, view angles)",
                 ],
                 "headless_safe_features": [
@@ -474,7 +462,7 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                         "1. open_document(path='...')",
                         "2. list_objects() to see what exists",
                         "3. inspect_object(name='...') for details",
-                        "4. Use safe_execute() for modifications",
+                        "4. edit_object(name='...') for modifications",
                         "5. validate_document() after changes",
                         "6. save_document()",
                     ],
@@ -493,9 +481,9 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                     "description": "When trying operations that might fail",
                     "steps": [
                         "1. save_document() first (backup)",
-                        "2. Use safe_execute() with validate_after=True",
-                        "3. If failed, operation auto-reverts",
-                        "4. Or use get_undo_redo_status() before, undo() after",
+                        "2. Run the operation - a failure aborts its own transaction",
+                        "3. validate_document() to confirm the result is sound",
+                        "4. undo() if the result is unwanted",
                     ],
                 },
             },
@@ -560,18 +548,8 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                     "description": "Execute Python code and access console",
                     "tools": [
                         {
-                            "name": "execute_python",
-                            "description": "Execute arbitrary Python code in FreeCAD's context. Use _result_ = value to return data.",
-                            "key_params": ["code", "timeout_ms"],
-                        },
-                        {
                             "name": "get_console_output",
                             "description": "Get recent FreeCAD console output for debugging",
-                            "key_params": ["lines"],
-                        },
-                        {
-                            "name": "get_console_log",
-                            "description": "Alternative console log access",
                             "key_params": ["lines"],
                         },
                         {
@@ -582,11 +560,6 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                         {
                             "name": "get_connection_status",
                             "description": "Check MCP bridge connection status and latency",
-                            "key_params": [],
-                        },
-                        {
-                            "name": "get_mcp_server_environment",
-                            "description": "Get Robust MCP Server environment info (instance_id, OS, hostname, FreeCAD connection)",
                             "key_params": [],
                         },
                     ],
@@ -633,7 +606,7 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                 },
                 "objects": {
                     "description": "Object creation and manipulation",
-                    "note": "All operations are wrapped in transactions for undo support",
+                    "note": "The executor opens a transaction per mutating call and aborts it on failure, so each appears as one undo step",
                     "tools": [
                         {
                             "name": "list_objects",
@@ -651,212 +624,15 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                             "key_params": ["object_name", "doc_name"],
                         },
                         {
-                            "name": "create_object",
-                            "description": "Create generic FreeCAD object by type",
-                            "key_params": ["type_id", "name", "properties"],
-                        },
-                        {
-                            "name": "create_box",
-                            "description": "Create Part::Box primitive",
-                            "key_params": ["length", "width", "height"],
-                        },
-                        {
-                            "name": "create_cylinder",
-                            "description": "Create Part::Cylinder primitive",
-                            "key_params": ["radius", "height"],
-                        },
-                        {
-                            "name": "create_sphere",
-                            "description": "Create Part::Sphere primitive",
-                            "key_params": ["radius"],
-                        },
-                        {
-                            "name": "create_cone",
-                            "description": "Create Part::Cone primitive",
-                            "key_params": ["radius1", "radius2", "height"],
-                        },
-                        {
-                            "name": "create_torus",
-                            "description": "Create Part::Torus primitive",
-                            "key_params": ["radius1", "radius2"],
-                        },
-                        {
-                            "name": "create_wedge",
-                            "description": "Create Part::Wedge primitive",
-                            "key_params": [
-                                "xmin",
-                                "xmax",
-                                "ymin",
-                                "ymax",
-                                "zmin",
-                                "zmax",
-                            ],
-                        },
-                        {
-                            "name": "create_helix",
-                            "description": "Create Part::Helix primitive",
-                            "key_params": ["pitch", "height", "radius"],
-                        },
-                        {
-                            "name": "create_line",
-                            "description": "Create Part::Line (edge between two points)",
-                            "key_params": ["point1", "point2"],
-                        },
-                        {
-                            "name": "create_plane",
-                            "description": "Create Part::Plane (rectangular face)",
-                            "key_params": ["length", "width"],
-                        },
-                        {
-                            "name": "create_ellipse",
-                            "description": "Create Part ellipse (2D shape)",
-                            "key_params": ["major_radius", "minor_radius"],
-                        },
-                        {
-                            "name": "create_prism",
-                            "description": "Create Part::Prism (extruded polygon)",
-                            "key_params": ["polygon", "height"],
-                        },
-                        {
-                            "name": "create_regular_polygon",
-                            "description": "Create regular polygon face",
-                            "key_params": ["num_sides", "radius"],
-                        },
-                        {
-                            "name": "boolean_operation",
-                            "description": "Union, cut, or intersection of two shapes",
-                            "key_params": ["operation", "object1", "object2"],
-                        },
-                        {
-                            "name": "fuse_all",
-                            "description": "Fuse multiple objects together",
-                            "key_params": ["object_names"],
-                        },
-                        {
-                            "name": "common_all",
-                            "description": "Find intersection of multiple objects",
-                            "key_params": ["object_names"],
-                        },
-                        {
-                            "name": "shell_object",
-                            "description": "Create hollow shell from solid",
-                            "key_params": ["object_name", "thickness", "faces"],
-                        },
-                        {
-                            "name": "offset_3d",
-                            "description": "Offset object surface by distance",
-                            "key_params": ["object_name", "offset"],
-                        },
-                        {
-                            "name": "slice_shape",
-                            "description": "Slice object with a plane",
-                            "key_params": ["object_name", "plane"],
-                        },
-                        {
-                            "name": "section_shape",
-                            "description": "Get 2D section where plane intersects object",
-                            "key_params": ["object_name", "plane"],
-                        },
-                        {
-                            "name": "make_compound",
-                            "description": "Group objects into a compound",
-                            "key_params": ["object_names"],
-                        },
-                        {
-                            "name": "explode_compound",
-                            "description": "Split compound into individual objects",
-                            "key_params": ["object_name"],
-                        },
-                        {
-                            "name": "make_wire",
-                            "description": "Create wire from edges/curves",
-                            "key_params": ["object_names"],
-                        },
-                        {
-                            "name": "make_face",
-                            "description": "Create face from wire",
-                            "key_params": ["wire_name"],
-                        },
-                        {
-                            "name": "extrude_shape",
-                            "description": "Extrude shape along vector",
-                            "key_params": ["object_name", "direction", "length"],
-                        },
-                        {
-                            "name": "revolve_shape",
-                            "description": "Revolve shape around axis",
-                            "key_params": ["object_name", "axis", "angle"],
-                        },
-                        {
-                            "name": "part_loft",
-                            "description": "Create Part loft between shapes",
-                            "key_params": ["object_names", "solid"],
-                        },
-                        {
-                            "name": "part_sweep",
-                            "description": "Sweep profile along path",
-                            "key_params": ["profile_name", "path_name"],
-                        },
-                        {
                             "name": "edit_object",
                             "description": "Modify object properties",
                             "key_params": ["object_name", "properties"],
-                        },
-                        {
-                            "name": "delete_object",
-                            "description": "Delete an object",
-                            "key_params": ["object_name"],
-                        },
-                        {
-                            "name": "set_placement",
-                            "description": "Set object position and rotation",
-                            "key_params": ["object_name", "x", "y", "z"],
-                        },
-                        {
-                            "name": "scale_object",
-                            "description": "Scale an object by a factor",
-                            "key_params": ["object_name", "scale_factor"],
-                        },
-                        {
-                            "name": "rotate_object",
-                            "description": "Rotate object around an axis",
-                            "key_params": ["object_name", "axis", "angle"],
-                        },
-                        {
-                            "name": "copy_object",
-                            "description": "Create a copy of an object",
-                            "key_params": ["object_name"],
-                        },
-                        {
-                            "name": "mirror_object",
-                            "description": "Mirror object across a plane",
-                            "key_params": ["object_name", "plane"],
-                        },
-                    ],
-                },
-                "selection": {
-                    "description": "Selection management",
-                    "tools": [
-                        {
-                            "name": "get_selection",
-                            "description": "Get currently selected objects",
-                            "key_params": ["doc_name"],
-                        },
-                        {
-                            "name": "set_selection",
-                            "description": "Select specific objects",
-                            "key_params": ["object_names"],
-                        },
-                        {
-                            "name": "clear_selection",
-                            "description": "Clear current selection",
-                            "key_params": [],
                         },
                     ],
                 },
                 "partdesign": {
                     "description": "Parametric modeling with PartDesign workbench",
-                    "note": "All operations are wrapped in transactions for undo support",
+                    "note": "The executor opens a transaction per mutating call and aborts it on failure, so each appears as one undo step",
                     "tools": [
                         {
                             "name": "create_partdesign_body",
@@ -952,7 +728,7 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                 },
                 "patterns": {
                     "description": "Pattern and transform features",
-                    "note": "All operations are wrapped in transactions for undo support",
+                    "note": "The executor opens a transaction per mutating call and aborts it on failure, so each appears as one undo step",
                     "tools": [
                         {
                             "name": "linear_pattern",
@@ -983,7 +759,7 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                 },
                 "sketcher_constraints": {
                     "description": "Sketcher constraint tools for fully defining geometry",
-                    "note": "All operations are wrapped in transactions for undo support",
+                    "note": "The executor opens a transaction per mutating call and aborts it on failure, so each appears as one undo step",
                     "tools": [
                         {
                             "name": "add_sketch_constraint",
@@ -1031,49 +807,9 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                             "key_params": [],
                         },
                         {
-                            "name": "zoom_in",
-                            "description": "Zoom in",
-                            "key_params": ["factor"],
-                        },
-                        {
-                            "name": "zoom_out",
-                            "description": "Zoom out",
-                            "key_params": ["factor"],
-                        },
-                        {
-                            "name": "set_camera_position",
-                            "description": "Set exact camera position and orientation",
-                            "key_params": ["position", "direction", "up_vector"],
-                        },
-                        {
                             "name": "set_object_visibility",
                             "description": "Show/hide objects (GUI only)",
                             "key_params": ["object_name", "visible"],
-                        },
-                        {
-                            "name": "set_display_mode",
-                            "description": "Set display mode (wireframe, shaded)",
-                            "key_params": ["object_name", "mode"],
-                        },
-                        {
-                            "name": "set_object_color",
-                            "description": "Change object color (GUI only)",
-                            "key_params": ["object_name", "r", "g", "b"],
-                        },
-                        {
-                            "name": "list_workbenches",
-                            "description": "List available workbenches",
-                            "key_params": [],
-                        },
-                        {
-                            "name": "activate_workbench",
-                            "description": "Switch workbench",
-                            "key_params": ["workbench_name"],
-                        },
-                        {
-                            "name": "recompute",
-                            "description": "Recompute document",
-                            "key_params": ["doc_name"],
                         },
                     ],
                 },
@@ -1088,11 +824,6 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                         {
                             "name": "redo",
                             "description": "Redo undone operation",
-                            "key_params": ["doc_name"],
-                        },
-                        {
-                            "name": "get_undo_redo_status",
-                            "description": "Get available undo/redo operations",
                             "key_params": ["doc_name"],
                         },
                     ],
@@ -1140,44 +871,9 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                             "key_params": ["object_names", "file_path"],
                         },
                         {
-                            "name": "export_3mf",
-                            "description": "Export to 3MF format",
-                            "key_params": ["object_names", "file_path"],
-                        },
-                        {
-                            "name": "export_obj",
-                            "description": "Export to OBJ format",
-                            "key_params": ["object_names", "file_path"],
-                        },
-                        {
-                            "name": "export_iges",
-                            "description": "Export to IGES format",
-                            "key_params": ["object_names", "file_path"],
-                        },
-                        {
                             "name": "import_step",
                             "description": "Import STEP file",
                             "key_params": ["file_path"],
-                        },
-                        {
-                            "name": "import_stl",
-                            "description": "Import STL file",
-                            "key_params": ["file_path"],
-                        },
-                    ],
-                },
-                "parts_library": {
-                    "description": "Parts library access",
-                    "tools": [
-                        {
-                            "name": "list_parts_library",
-                            "description": "List parts in library",
-                            "key_params": [],
-                        },
-                        {
-                            "name": "insert_part_from_library",
-                            "description": "Insert part from library",
-                            "key_params": ["part_path"],
                         },
                     ],
                 },
@@ -1193,16 +889,6 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                             "name": "validate_document",
                             "description": "Check health of all objects in document",
                             "key_params": ["doc_name"],
-                        },
-                        {
-                            "name": "undo_if_invalid",
-                            "description": "Check last operation and undo if it created invalid geometry",
-                            "key_params": ["doc_name"],
-                        },
-                        {
-                            "name": "safe_execute",
-                            "description": "Execute Python code with automatic rollback on failure",
-                            "key_params": ["code", "doc_name"],
                         },
                     ],
                 },
@@ -1324,7 +1010,6 @@ Check with: sketch.solve() returns DoF count (0 = fully constrained)""",
                     "description": "Export model for 3D printing",
                     "steps": [
                         "export_stl(object_names=['Body'], file_path='...')",
-                        "Or export_3mf for color/material support",
                     ],
                 },
             },

@@ -11,7 +11,6 @@ Based on learnings from competitive analysis:
 
 import asyncio
 import io
-import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -25,7 +24,6 @@ from freecad_mcp.bridge.base import (
     DocumentInfo,
     ExecutionResult,
     FreecadBridge,
-    MacroInfo,
     ObjectInfo,
     ScreenshotResult,
     ViewAngle,
@@ -927,145 +925,6 @@ elif view_type == "Right":
 _result_ = True
 """
         await self.execute_python(code, transaction=None)
-
-    # =========================================================================
-    # Macros
-    # =========================================================================
-
-    def _get_macro_path(self) -> Path:
-        """Get the FreeCAD macro directory path."""
-        # Default FreeCAD macro locations
-        if sys.platform == "darwin":
-            return Path.home() / "Library" / "Application Support" / "FreeCAD" / "Macro"
-        elif sys.platform == "win32":
-            return Path(os.environ.get("APPDATA", "")) / "FreeCAD" / "Macro"
-        else:
-            return Path.home() / ".local" / "share" / "FreeCAD" / "Macro"
-
-    async def get_macros(self) -> list[MacroInfo]:
-        """Get list of available macros.
-
-        Returns:
-            List of MacroInfo for each macro.
-        """
-        macro_path = self._get_macro_path()
-
-        if not macro_path.exists():
-            return []
-
-        macros = []
-        for macro_file in macro_path.glob("*.FCMacro"):
-            description = ""
-            try:
-                content = macro_file.read_text()
-                # Extract description from first comment block
-                for line in content.split("\n"):
-                    if line.startswith("#"):
-                        desc_line = line.lstrip("#").strip()
-                        if desc_line and not desc_line.startswith("!"):
-                            description = desc_line
-                            break
-            except Exception:
-                pass
-
-            macros.append(
-                MacroInfo(
-                    name=macro_file.stem,
-                    path=str(macro_file),
-                    description=description,
-                    is_system=False,
-                )
-            )
-
-        return macros
-
-    async def run_macro(
-        self,
-        macro_name: str,
-        args: dict[str, Any] | None = None,
-    ) -> ExecutionResult:
-        """Run a macro by name.
-
-        Args:
-            macro_name: Macro name (without .FCMacro extension).
-            args: Arguments to pass to the macro.
-
-        Returns:
-            ExecutionResult from macro execution.
-        """
-        macro_path = self._get_macro_path() / f"{macro_name}.FCMacro"
-
-        if not macro_path.exists():
-            return ExecutionResult(
-                success=False,
-                result=None,
-                stdout="",
-                stderr=f"Macro not found: {macro_name}",
-                execution_time_ms=0,
-                error_type="FileNotFoundError",
-            )
-
-        try:
-            macro_code = macro_path.read_text()
-        except Exception as e:
-            return ExecutionResult(
-                success=False,
-                result=None,
-                stdout="",
-                stderr=f"Failed to read macro: {e}",
-                execution_time_ms=0,
-                error_type=type(e).__name__,
-            )
-
-        # Prepend argument setup if provided
-        if args:
-            args_setup = "\n".join(f"{k} = {v!r}" for k, v in args.items())
-            macro_code = args_setup + "\n" + macro_code
-
-        return await self.execute_python(macro_code, transaction=None)
-
-    async def create_macro(
-        self,
-        name: str,
-        code: str,
-        description: str = "",
-    ) -> MacroInfo:
-        """Create a new macro.
-
-        Args:
-            name: Macro name (without extension).
-            code: Python code for the macro.
-            description: Macro description.
-
-        Returns:
-            MacroInfo for the created macro.
-        """
-        macro_path = self._get_macro_path()
-        macro_path.mkdir(parents=True, exist_ok=True)
-
-        macro_file = macro_path / f"{name}.FCMacro"
-
-        # Add description as header comment
-        header = f"# {description}\n\n" if description else ""
-
-        # Add standard imports
-        full_code = f"""{header}# -*- coding: utf-8 -*-
-# FreeCAD Macro: {name}
-# Created via MCP Bridge
-
-import FreeCAD
-import FreeCADGui
-
-{code}
-"""
-        macro_file.write_text(full_code)
-
-        return MacroInfo(
-            name=name,
-            path=str(macro_file),
-            description=description,
-            is_system=False,
-        )
 
     # =========================================================================
     # Workbenches

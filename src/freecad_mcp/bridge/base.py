@@ -188,22 +188,6 @@ class ScreenshotResult:
 
 
 @dataclass
-class MacroInfo:
-    """Information about a FreeCAD macro.
-
-    Attributes:
-        name: Macro name (without extension).
-        path: Full path to macro file.
-        description: Macro description from comments.
-        is_system: Whether it's a system macro.
-    """
-
-    name: str
-    path: str
-    description: str = ""
-    is_system: bool = False
-
-
 @dataclass
 class WorkbenchInfo:
     """Information about a FreeCAD workbench.
@@ -527,52 +511,6 @@ class FreecadBridge(ABC):
         Args:
             view_angle: View angle to set.
             doc_name: Document name (uses active if None).
-        """
-
-    # =========================================================================
-    # Macros
-    # =========================================================================
-
-    @abstractmethod
-    async def get_macros(self) -> list[MacroInfo]:
-        """Get list of available macros.
-
-        Returns:
-            List of MacroInfo for each macro.
-        """
-
-    @abstractmethod
-    async def run_macro(
-        self,
-        macro_name: str,
-        args: dict[str, Any] | None = None,
-    ) -> ExecutionResult:
-        """Run a macro by name.
-
-        Args:
-            macro_name: Macro name (without .FCMacro extension).
-            args: Arguments to pass to the macro.
-
-        Returns:
-            ExecutionResult from macro execution.
-        """
-
-    @abstractmethod
-    async def create_macro(
-        self,
-        name: str,
-        code: str,
-        description: str = "",
-    ) -> MacroInfo:
-        """Create a new macro.
-
-        Args:
-            name: Macro name (without extension).
-            code: Python code for the macro.
-            description: Macro description.
-
-        Returns:
-            MacroInfo for the created macro.
         """
 
     # =========================================================================

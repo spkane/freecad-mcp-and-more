@@ -72,7 +72,6 @@ You are connected to the FreeCAD Robust MCP Server. Follow these guidelines for 
 Document mutation tools use transactions where FreeCAD supports undo:
 - Use `undo()` to revert any operation
 - Use `redo()` to redo after undo
-- Use `get_undo_redo_status()` to see available undo steps
 
 ### For Parametric Parts (PartDesign)
 ```
@@ -84,7 +83,6 @@ Document mutation tools use transactions where FreeCAD supports undo:
 
 ### For Error Prevention
 - **Use transactional mutation tools** so failed changes can roll back
-- **Use safe_execute()** for risky operations - auto-undoes on failure
 - **Use validate_document()** to check all objects after complex operations
 
 ### Version Compatibility
@@ -98,21 +96,18 @@ native PartDesign, attachment, and variable APIs are not compatible.
 | Task | Tool(s) |
 |------|---------|
 | Create parametric part | `create_partdesign_body` → `create_sketch` → `pad_sketch` |
-| Simple primitive | `create_box`, `create_cylinder`, `create_sphere` |
-| Combine shapes | `boolean_operation(operation="fuse/cut/common")` or `fuse_all` |
 | Add sketch constraints | `constrain_horizontal`, `constrain_distance`, etc. |
 | Check for errors | `validate_object` or `validate_document` |
 | Debug issues | `get_console_output(lines=50)` |
 | Undo a document mutation | `undo()` when the tool uses a transaction |
-| Safe execution | `safe_execute(code="...", validate_after=True)` |
 
 ---
 
 ## GUI-Only Tools (Skip in Headless Mode)
 
 These require `gui_available=true`:
-- `get_screenshot()`, `set_object_visibility()`, `set_object_color()`
-- Camera controls: `zoom_in()`, `zoom_out()`, `set_view_angle()`
+- `get_screenshot()`, `set_object_visibility()`
+- View angle: `set_view_angle()`
 
 All other tools work in both GUI and headless modes.
 
@@ -169,25 +164,20 @@ Or read the full `freecad://best-practices` resource for comprehensive documenta
 ## Key Principles
 - **All Operations are Undoable**: Every tool operation is wrapped in a transaction
 - **Validate Early**: After any geometry creation, use `validate_object()` to check validity
-- **Use safe_execute()**: For risky operations with automatic rollback on failure
 - **Check Version Compatibility**: FreeCAD 1.x changed some APIs (see best-practices resource)
 
 ## Undo/Redo Support
 All tool operations support undo:
 - `undo()` - Reverts the last operation
 - `redo()` - Redoes after undo
-- `get_undo_redo_status()` - Shows available undo/redo steps
-- `undo_if_invalid()` - Checks and reverts if geometry is invalid
 
 ## Error Recovery
 - If something breaks: `undo()` reverts the last operation
-- For batch issues: `undo_if_invalid()` checks and reverts if needed
 - Always check `get_console_output()` for error messages
 
 ## GUI vs Headless
 These tools require GUI mode (fail gracefully in headless):
-- `get_screenshot()`, `set_object_visibility()`, `set_object_color()`
-- Camera controls: `zoom_in()`, `zoom_out()`, `set_camera_position()`
+- `get_screenshot()`, `set_object_visibility()`
 All other tools work in both modes.""",
             "partdesign": """# PartDesign Workflow Guidance
 
@@ -332,9 +322,6 @@ If boolean fails:
 |--------|------|----------|
 | STEP | `export_step()` | CAD interchange, precise geometry |
 | STL | `export_stl()` | 3D printing (mesh format) |
-| 3MF | `export_3mf()` | 3D printing with color/material |
-| OBJ | `export_obj()` | Graphics, rendering, games |
-| IGES | `export_iges()` | Legacy CAD systems |
 
 ## Pre-Export Checklist
 1. `validate_document()` - Ensure all objects are valid
@@ -348,7 +335,6 @@ If boolean fails:
 
 ## Import Formats
 - `import_step()` - Preserves precise CAD geometry
-- `import_stl()` - Imports as mesh (may need conversion for CAD ops)
 
 ## Common Issues
 - **Export fails**: Object has invalid shape
@@ -393,22 +379,12 @@ Check these fields:
 3. Fix or delete problem objects
 4. `recompute_document()` - Refresh everything
 
-## Using safe_execute
-For risky operations:
-```
-safe_execute(
-    code="... risky Python code ...",
-    validate_after=True,
-    auto_undo_on_failure=True
-)
-```
-Automatically reverts if validation fails.""",
+""",
             "validation": """# Validation Guidance
 
 ## Transaction Support
 **All MCP tool operations are wrapped in transactions** - this means:
 - Every operation can be undone with `undo()`
-- Use `get_undo_redo_status()` to see available undo steps
 - Transaction names appear in FreeCAD's Edit > Undo menu
 
 ## Validation Tools
@@ -427,38 +403,17 @@ Checks all objects in document:
 - `invalid_objects`: List of problem object names
 - `objects`: Detailed status of each object
 
-### undo_if_invalid(doc_name)
-Checks document and auto-undoes if problems:
-- Runs validation
-- If invalid objects found, calls undo()
-- Returns both validation and undo results
-
-### safe_execute(code, validate_after, auto_undo_on_failure)
-Protected code execution:
-- Wraps code in transaction
-- Validates result if validate_after=True
-- Auto-reverts if validation fails and auto_undo_on_failure=True
-
 ## Validation Pattern
 After any operation:
 ```
-# Option 1: Simple undo if something goes wrong
-create_box(length=10, width=10, height=10)
-# Oops, wrong size
-undo()  # Reverts the box creation
+# Simple undo if something goes wrong
+undo()  # Reverts the last operation
 
-# Option 2: Manual validation
+# Manual validation
 result = validate_object(object_name="NewFeature")
 if not result["is_valid"]:
     undo()
     # Try different approach
-
-# Option 3: Automatic protection
-safe_execute(
-    code="...",
-    validate_after=True,
-    auto_undo_on_failure=True
-)
 ```
 
 ## What Gets Checked
@@ -569,7 +524,7 @@ Use `create_sketch` with plane="{plane}" to start a new sketch.
 {"- radius: Circle radius" if shape_type == "circle" else ""}
 
 {"#### Custom Polygon" if shape_type == "polygon" else ""}
-{"Use `execute_python` with Part.makePolygon() for custom shapes." if shape_type == "polygon" else ""}
+{"Use add_sketch_polygon() for regular polygons, or use Python code for custom shapes." if shape_type == "polygon" else ""}
 
 ### Step 3: Constrain the Sketch
 For a fully constrained sketch:
@@ -580,7 +535,7 @@ For a fully constrained sketch:
 The sketch can then be:
 - Padded (extruded) with `pad_sketch`
 - Pocketed (cut) with `pocket_sketch`
-- Revolved with `execute_python` using PartDesign Revolution
+- Revolved with `revolution_sketch`
 """
 
     @mcp.prompt()
@@ -592,48 +547,25 @@ The sketch can then be:
         """
         return """# FreeCAD Boolean Operations Guide
 
-Boolean operations combine two or more shapes into a new shape.
+Boolean operations for PartDesign are performed through native PartDesign features
+(pad, pocket, revolution, groove) or through Python code using Part module operations.
 
-## Available Operations
+## Available PartDesign Operations
 
-### 1. Fuse (Union)
-Combines two shapes into one:
-```
-boolean_operation(
-    object1="Box",
-    object2="Cylinder",
-    operation="fuse",
-    result_name="FusedShape"
-)
-```
+### Additive (Fuse-like)
+- `pad_sketch` - Extrude a sketch to add material
+- `revolution_sketch` - Revolve a sketch to add material
+- `loft_sketches` - Loft between sketches to add material
 
-### 2. Cut (Difference)
-Removes the second shape from the first:
-```
-boolean_operation(
-    object1="Box",
-    object2="Cylinder",
-    operation="cut",
-    result_name="CutShape"
-)
-```
-
-### 3. Common (Intersection)
-Keeps only the overlapping region:
-```
-boolean_operation(
-    object1="Box",
-    object2="Cylinder",
-    operation="common",
-    result_name="CommonShape"
-)
-```
+### Subtractive (Cut-like)
+- `pocket_sketch` - Cut material using a sketch
+- `groove_sketch` - Remove material by revolving a sketch
+- `create_hole` - Create parametric holes
 
 ## Tips
-- Shapes must overlap for meaningful results
-- The original objects remain in the document
-- Use `set_object_visibility` to hide originals after operation
-- Recompute the document after boolean operations
+- Use `set_object_visibility` to show/hide objects
+- Validate after each feature with `validate_object`
+- Use `validate_document` to check all objects at once
 """
 
     # =========================================================================
@@ -645,7 +577,7 @@ boolean_operation(
         """Guide for exporting FreeCAD models to various formats.
 
         Args:
-            target_format: Target export format (STEP, STL, OBJ, IGES).
+            target_format: Target export format (STEP, STL).
 
         Returns:
             Export guidance for the specified format.
@@ -664,20 +596,6 @@ boolean_operation(
                 "description": "Triangulated mesh format",
                 "best_for": "3D printing, mesh-based workflows",
                 "params": "file_path, object_names (optional), mesh_tolerance (default 0.1)",
-            },
-            "OBJ": {
-                "tool": "export_obj",
-                "extension": ".obj",
-                "description": "Wavefront OBJ mesh format",
-                "best_for": "3D graphics, rendering, game engines",
-                "params": "file_path, object_names (optional)",
-            },
-            "IGES": {
-                "tool": "export_iges",
-                "extension": ".iges",
-                "description": "Initial Graphics Exchange Specification",
-                "best_for": "Legacy CAD systems, surface data",
-                "params": "file_path, object_names (optional)",
             },
         }
 
@@ -719,7 +637,7 @@ Use the `{info["tool"]}` tool with parameters:
         """Guide for importing models into FreeCAD.
 
         Args:
-            source_format: Source file format (STEP, STL).
+            source_format: Source file format (STEP).
 
         Returns:
             Import guidance for the specified format.
@@ -729,11 +647,6 @@ Use the `{info["tool"]}` tool with parameters:
                 "tool": "import_step",
                 "description": "Imports precise CAD geometry",
                 "notes": "Preserves feature boundaries, faces, and edges",
-            },
-            "STL": {
-                "tool": "import_stl",
-                "description": "Imports triangulated mesh",
-                "notes": "Results in Mesh object, may need conversion for CAD operations",
             },
         }
 
@@ -788,56 +701,9 @@ Use `inspect_object` with `include_shape=True` to get:
 - Vertex/edge/face counts
 - Validity status
 
-## Detailed Analysis with Python
-
-### Bounding Box
-```python
-execute_python('''
-obj = FreeCAD.ActiveDocument.getObject("ObjectName")
-bb = obj.Shape.BoundBox
-_result_ = {
-    "min": [bb.XMin, bb.YMin, bb.ZMin],
-    "max": [bb.XMax, bb.YMax, bb.ZMax],
-    "size": [bb.XLength, bb.YLength, bb.ZLength],
-    "center": [bb.Center.x, bb.Center.y, bb.Center.z]
-}
-''')
-```
-
-### Center of Mass
-```python
-execute_python('''
-obj = FreeCAD.ActiveDocument.getObject("ObjectName")
-com = obj.Shape.CenterOfMass
-_result_ = {"x": com.x, "y": com.y, "z": com.z}
-''')
-```
-
-### Moments of Inertia
-```python
-execute_python('''
-obj = FreeCAD.ActiveDocument.getObject("ObjectName")
-moi = obj.Shape.MatrixOfInertia
-_result_ = {
-    "Ixx": moi.A11, "Iyy": moi.A22, "Izz": moi.A33,
-    "Ixy": moi.A12, "Ixz": moi.A13, "Iyz": moi.A23
-}
-''')
-```
-
 ## Validation
-Check for geometry issues:
-```python
-execute_python('''
-obj = FreeCAD.ActiveDocument.getObject("ObjectName")
-shape = obj.Shape
-_result_ = {
-    "is_valid": shape.isValid(),
-    "is_closed": shape.isClosed() if hasattr(shape, 'isClosed') else None,
-    "has_shape": shape.ShapeType != "Compound" or len(shape.Solids) > 0
-}
-''')
-```
+Use `validate_object` to check geometry:
+- `validate_object(object_name="ObjectName")` returns shape validity, volume, area, and error state.
 """
 
     @mcp.prompt()
@@ -853,37 +719,20 @@ _result_ = {
 
 ### 1. Recompute Errors
 **Symptom:** Objects show error state, model doesn't update
-**Solution:**
-```python
-recompute_document()  # Force full recompute
-```
+**Solution:** Use `recompute_document()` to force a full recompute.
 
 ### 2. Invalid Shape
-**Symptom:** Boolean operations fail, export errors
+**Symptom:** Export fails, operations fail
 **Diagnosis:**
 ```python
-execute_python('''
-obj = FreeCAD.ActiveDocument.getObject("ObjectName")
-_result_ = {
-    "valid": obj.Shape.isValid(),
-    "type": obj.Shape.ShapeType,
-    "check": obj.Shape.check() if hasattr(obj.Shape, 'check') else "N/A"
-}
-''')
+validate_object(object_name="ObjectName")
 ```
 
 ### 3. Sketch Not Fully Constrained
 **Symptom:** Sketch geometry moves unexpectedly
 **Check constraints:**
 ```python
-execute_python('''
-sketch = FreeCAD.ActiveDocument.getObject("SketchName")
-_result_ = {
-    "dof": sketch.solve(),  # Degrees of freedom
-    "constraint_count": sketch.ConstraintCount,
-    "geometry_count": sketch.GeometryCount
-}
-''')
+get_sketch_info(sketch_name="SketchName")  # Check degrees of freedom
 ```
 
 ### 4. Object Dependencies
@@ -1048,27 +897,7 @@ get_connection_status()
 - Try increasing timeout values
 - Check FreeCAD console for errors
 
-## Execution Issues
 
-### Code Execution Timeout
-- Increase timeout_ms parameter
-- Break complex operations into smaller steps
-- Check for infinite loops in code
-
-### No Result Returned
-- Ensure you set `_result_ = value` in your code
-- Check for exceptions in stderr
-
-**Debug execution:**
-```python
-execute_python('''
-try:
-    # Your code
-    _result_ = {"success": True, "data": result}
-except Exception as e:
-    _result_ = {"success": False, "error": str(e)}
-''')
-```
 
 ## GUI Issues
 

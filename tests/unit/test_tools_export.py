@@ -140,75 +140,6 @@ class TestExportTools:
         mock_bridge.execute_python.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_export_3mf(self, register_tools, mock_bridge):
-        """export_3mf should export to 3MF format via execute_python."""
-        mock_bridge.execute_python = AsyncMock(
-            return_value=ExecutionResult(
-                success=True,
-                result={
-                    "success": True,
-                    "path": "/tmp/output.3mf",
-                    "object_count": 1,
-                },
-                stdout="",
-                stderr="",
-                execution_time_ms=40.0,
-            )
-        )
-
-        export_3mf = register_tools["export_3mf"]
-        result = await export_3mf(file_path="/tmp/output.3mf")
-
-        assert result["success"] is True
-        mock_bridge.execute_python.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_export_obj(self, register_tools, mock_bridge):
-        """export_obj should export to OBJ format via execute_python."""
-        mock_bridge.execute_python = AsyncMock(
-            return_value=ExecutionResult(
-                success=True,
-                result={
-                    "success": True,
-                    "path": "/tmp/output.obj",
-                    "object_count": 1,
-                },
-                stdout="",
-                stderr="",
-                execution_time_ms=35.0,
-            )
-        )
-
-        export_obj = register_tools["export_obj"]
-        result = await export_obj(file_path="/tmp/output.obj")
-
-        assert result["success"] is True
-        mock_bridge.execute_python.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_export_iges(self, register_tools, mock_bridge):
-        """export_iges should export to IGES format via execute_python."""
-        mock_bridge.execute_python = AsyncMock(
-            return_value=ExecutionResult(
-                success=True,
-                result={
-                    "success": True,
-                    "path": "/tmp/output.iges",
-                    "object_count": 1,
-                },
-                stdout="",
-                stderr="",
-                execution_time_ms=55.0,
-            )
-        )
-
-        export_iges = register_tools["export_iges"]
-        result = await export_iges(file_path="/tmp/output.iges")
-
-        assert result["success"] is True
-        mock_bridge.execute_python.assert_called_once()
-
-    @pytest.mark.asyncio
     async def test_import_step(self, register_tools, mock_bridge):
         """import_step should import STEP files via execute_python."""
         mock_bridge.execute_python = AsyncMock(
@@ -231,30 +162,6 @@ class TestExportTools:
         assert result["success"] is True
         assert result["document"] == "Imported"
         assert len(result["objects"]) == 2
-        mock_bridge.execute_python.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_import_stl(self, register_tools, mock_bridge):
-        """import_stl should import STL files via execute_python."""
-        mock_bridge.execute_python = AsyncMock(
-            return_value=ExecutionResult(
-                success=True,
-                result={
-                    "success": True,
-                    "document": "Mesh",
-                    "object": "Mesh001",
-                },
-                stdout="",
-                stderr="",
-                execution_time_ms=80.0,
-            )
-        )
-
-        import_stl = register_tools["import_stl"]
-        result = await import_stl(file_path="/tmp/input.stl")
-
-        assert result["success"] is True
-        assert result["object"] == "Mesh001"
         mock_bridge.execute_python.assert_called_once()
 
     @pytest.mark.asyncio
