@@ -97,8 +97,9 @@ Remaining limits:
 `getStatusString()` returns FreeCAD's real message for some failures
 (`No object linked`, `Linked shape object is empty`) but not others. A
 `PartDesign::Revolution` whose axis intersects its profile reports only
-`Null shape`, while the Report view names the cause. Until item 1 is
-solid, this class is diagnosable only through the widget.
+`Null shape`, while FreeCAD's console names the cause. Console capture
+covers this class in practice, but only for the call that fails: a later
+read of the same object still cannot recover the reason.
 
 ### 3. The bridge's own defects
 
