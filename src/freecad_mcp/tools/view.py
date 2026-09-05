@@ -254,7 +254,10 @@ def register_view_tools(mcp: Any, get_bridge: Callable[[], Awaitable[Any]]) -> N
                 placement defines the view normal.
             side: "front" looks against the normal; "back" looks along it.
             focus: Object names to frame. Frames the whole model if None.
-            padding: Fractional padding around the framed objects.
+            padding: Requested fractional margin around the framed
+                objects. Reserved: framing uses FreeCAD's own fit
+                margins, so this value is echoed back rather than
+                applied. Do not tune it to change the frame.
             hide_construction: Hide datums, origins, and construction helpers
                 for the capture, then restore them.
             width: Image width in pixels.

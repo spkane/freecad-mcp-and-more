@@ -617,7 +617,10 @@ class FreecadBridge(ABC):
                 `"back"` to view from the opposite side.
             focus: Object names to fit the view to, or `None` to fit the
                 whole document.
-            padding: Fractional margin to leave around the framed geometry.
+            padding: Requested fractional margin around the framed
+                geometry. Reserved: framing relies on FreeCAD's own
+                `fitAll`/`fitSelection` margins, so implementations
+                echo this value back rather than applying it.
             hide_construction: Whether to hide datum planes, origins, and
                 construction sketches for the duration of the capture.
             width: Image width in pixels.
