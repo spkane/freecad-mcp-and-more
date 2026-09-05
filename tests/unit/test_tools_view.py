@@ -394,3 +394,65 @@ class TestScreenshotEvidenceTransport:
         assert any(b.type == "image" for b in result.content)
         meta = json.loads(next(b for b in result.content if b.type == "text").text)
         assert meta["path"] is None
+
+    @pytest.mark.asyncio
+    async def test_capture_feature_view_returns_image_and_metadata(
+        self, register_tools, mock_bridge
+    ):
+        """A capture returns a viewable image plus its camera metadata."""
+        mock_bridge.capture_feature_view = AsyncMock(
+            return_value=ScreenshotResult(
+                success=True,
+                data="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+                "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+                format="png",
+                width=800,
+                height=600,
+                error=None,
+            )
+        )
+
+        capture = register_tools["capture_feature_view"]
+        result = await capture(normal_source="WindowSketch")
+
+        assert result.isError is False
+        assert any(block.type == "image" for block in result.content)
+        metadata = json.loads(
+            next(block for block in result.content if block.type == "text").text
+        )
+        assert metadata["normal_source"] == "WindowSketch"
+        assert metadata["side"] == "front"
+        assert metadata["path"].endswith(".png")
+
+    @pytest.mark.asyncio
+    async def test_capture_feature_view_rejects_unknown_side(
+        self, register_tools, mock_bridge
+    ):
+        """An invalid side is refused before the bridge is touched."""
+        mock_bridge.capture_feature_view = AsyncMock()
+
+        capture = register_tools["capture_feature_view"]
+        result = await capture(normal_source="S", side="sideways")
+
+        assert result.isError is True
+        mock_bridge.capture_feature_view.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_capture_feature_view_failure_is_reported_as_error(
+        self, register_tools, mock_bridge
+    ):
+        """A bridge failure surfaces as a tool error, not a silent success."""
+        mock_bridge.capture_feature_view = AsyncMock(
+            return_value=ScreenshotResult(
+                success=False,
+                data=None,
+                error="Sketch has no resolvable support placement",
+                width=800,
+                height=600,
+            )
+        )
+
+        capture = register_tools["capture_feature_view"]
+        result = await capture(normal_source="Missing")
+
+        assert result.isError is True

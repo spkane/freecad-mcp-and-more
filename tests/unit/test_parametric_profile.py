@@ -75,7 +75,7 @@ def test_parametric_profile_registers_only_declared_tools() -> None:
     register_tools(mcp, get_bridge)
 
     assert set(mcp._registered_tools) == set(PARAMETRIC_TOOL_NAMES)
-    assert len(mcp._registered_tools) == 54
+    assert len(mcp._registered_tools) == 55
     assert "create_partdesign_body" in mcp._registered_tools
     assert "create_sketch" in mcp._registered_tools
     assert "add_sketch_constraint" in mcp._registered_tools
@@ -207,7 +207,7 @@ async def test_parametric_resources_match_registered_interface() -> None:
         await mcp._registered_resources["freecad://capabilities"]()
     )
     assert capabilities["profile"] == "parametric"
-    assert capabilities["tool_count"] == 54
+    assert capabilities["tool_count"] == 55
     assert set(capabilities["tools"]) == set(PARAMETRIC_TOOL_NAMES)
     assert capabilities["modeling_contract"]["authoritative_artifact"] == (
         "native FCStd PartDesign feature tree"
@@ -275,3 +275,9 @@ class TestGuideResources:
             await mcp._registered_resources["freecad://capabilities"]()
         )
         assert sorted(catalog["resources"]) == sorted(mcp._registered_resources.keys())
+
+
+def test_capture_feature_view_is_in_the_parametric_profile():
+    """The visual gate's tool must be in the default surface."""
+    assert "capture_feature_view" in PARAMETRIC_TOOL_NAMES
+    assert len(PARAMETRIC_TOOL_NAMES) == 55

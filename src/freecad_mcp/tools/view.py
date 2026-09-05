@@ -188,6 +188,98 @@ def register_view_tools(mcp: Any, get_bridge: Callable[[], Awaitable[Any]]) -> N
         )
 
     @mcp.tool()
+    async def capture_feature_view(
+        normal_source: str,
+        side: str = "front",
+        focus: list[str] | None = None,
+        padding: float = 0.1,
+        hide_construction: bool = True,
+        width: int = 800,
+        height: int = 600,
+        doc_name: str | None = None,
+    ) -> CallToolResult:
+        """Capture the model looking along a named support's own normal.
+
+        A feature seen edge-on is not evidence about its shape. Use this for
+        every semantic opening or profile: pass the sketch, datum, or feature
+        that supports it as normal_source.
+
+        Requires GUI mode - will return an error in headless mode.
+
+        Args:
+            normal_source: Name of the sketch, datum, or feature whose support
+                placement defines the view normal.
+            side: "front" looks against the normal; "back" looks along it.
+            focus: Object names to frame. Frames the whole model if None.
+            padding: Fractional padding around the framed objects.
+            hide_construction: Hide datums, origins, and construction helpers
+                for the capture, then restore them.
+            width: Image width in pixels.
+            height: Image height in pixels.
+            doc_name: Document to capture. Uses the active document if None.
+
+        Returns:
+            A PNG image content block plus a JSON metadata block carrying the
+            camera direction, resolved source, focus names, hidden objects,
+            and the retained path.
+        """
+        if side not in ("front", "back"):
+            return _screenshot_error(
+                f"Invalid side: {side}. Options: ['front', 'back']",
+                normal_source,
+                doc_name,
+            )
+
+        bridge = await get_bridge()
+        result = await bridge.capture_feature_view(
+            normal_source=normal_source,
+            side=side,
+            focus=focus,
+            padding=padding,
+            hide_construction=hide_construction,
+            width=width,
+            height=height,
+            doc_name=doc_name,
+        )
+
+        if not result.success or not result.data:
+            return _screenshot_error(
+                result.error or "Feature view capture failed",
+                normal_source,
+                doc_name,
+            )
+
+        try:
+            payload = base64.b64decode(result.data, validate=True)
+        except (binascii.Error, ValueError):
+            return _screenshot_error(
+                "Feature view capture returned malformed image data",
+                normal_source,
+                doc_name,
+            )
+
+        path = _persist_screenshot(
+            payload, doc_name, f"{normal_source}_{side}", next(_SCREENSHOT_SEQUENCE)
+        )
+        metadata = {
+            "success": True,
+            "format": result.format or "png",
+            "width": result.width,
+            "height": result.height,
+            "normal_source": normal_source,
+            "side": side,
+            "focus": focus,
+            "document": doc_name,
+            "path": path,
+        }
+        return CallToolResult(
+            content=[
+                TextContent(type="text", text=json.dumps(metadata, indent=2)),
+                ImageContent(type="image", data=result.data, mimeType="image/png"),
+            ]
+        )
+
+    @mcp.tool()
     async def set_view_angle(
         view_angle: str,
         doc_name: str | None = None,

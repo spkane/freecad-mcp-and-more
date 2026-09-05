@@ -1,6 +1,6 @@
 """MCP tool profiles and implementations for FreeCAD.
 
-The parametric profile presents a focused, 54-tool native PartDesign interface.
+The parametric profile presents a focused, 55-tool native PartDesign interface.
 
 - execution: FreeCAD status and console query tools
 - documents: Document management tools
@@ -46,6 +46,7 @@ PARAMETRIC_TOOL_NAMES = frozenset(
         "add_sketch_point",
         "add_sketch_rectangle",
         "bind_expressions",
+        "capture_feature_view",
         "chamfer_edges",
         "close_document",
         "create_constrained_sketch",
