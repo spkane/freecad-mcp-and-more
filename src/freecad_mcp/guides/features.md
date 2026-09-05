@@ -26,11 +26,12 @@ an unavoidable topology-sensitive reference remains, record it explicitly and
 retest that it still resolves correctly after the document is saved and
 reopened.
 
-## Effect Requirements
+## Creating And Validating Features
 
-Additive features must increase Body volume; a feature that has no effect or
-that reduces volume where an addition was intended indicates the wrong
-operation or the wrong sketch, and should be rejected rather than accepted as
-a no-op. A pattern must become the Body Tip while retaining exactly one
-solid — a pattern that leaves disconnected solids or fails to advance the Tip
-has not produced the intended feature.
+Complete constrained sketches are created with `create_constrained_sketch` and
+then consumed by feature tools. Additive features such as `pad_sketch` must
+increase Body volume; a feature that has no effect or that reduces volume where
+an addition was intended indicates the wrong operation or the wrong sketch, and
+should be rejected rather than accepted as a no-op. A pattern must become the
+Body Tip while retaining exactly one solid — a pattern that leaves disconnected
+solids or fails to advance the Tip has not produced the intended feature.

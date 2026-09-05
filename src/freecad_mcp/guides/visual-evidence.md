@@ -7,7 +7,8 @@ evidence for a feature it does not clearly show. Follow this order.
 
 1. Run the deterministic structural and parametric checks first. Visual review
    supplements a passing model; it does not replace `validate_document` or a
-   measurement.
+   measurement. Pixels do not prove dimensions, connectivity, or editability —
+   a render supports intent, but deterministic checks prove geometry.
 2. Hide datum planes, origins, and construction helpers before capturing.
    Construction geometry left visible obscures the silhouette it was meant to
    support.

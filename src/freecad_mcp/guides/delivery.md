@@ -17,12 +17,13 @@ feature tree, the measurements taken and their results, any repairs performed
 and why, any topology-sensitive references that remain, and known
 limitations.
 
-## STEP Re-Import Validation
+## Persistence and Parametricity
 
-Export the validated document with `export_step`, re-import the STEP into a
-clean document, and validate the re-imported BREP. A STEP export that fails to
-re-import cleanly is not a working deliverable, whatever the original document
-showed.
+The persistence proof is: save the FCStd, close it, reopen it, apply another
+documented parameter edit, and validate the recomputed document. The native feature tree,
+App::VarSet properties, sketch dimensions, and expression links form the
+reproducibility record — they prove the model rebuilds correctly from named
+parameters rather than relying on incidental model state.
 
 ## Failure Demonstration
 
