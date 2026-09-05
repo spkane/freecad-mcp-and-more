@@ -104,6 +104,8 @@ def test_server_instructions_are_the_parametric_guidance() -> None:
 
 def test_guidance_contains_cross_workflow_quality_gates() -> None:
     """The shared guide should preserve the benchmark-proven quality gates."""
+    from freecad_mcp.guidance import GUIDE_TOPICS, load_guide
+
     required_phrases = [
         "coordinate frame",
         "governing parameters",
@@ -125,8 +127,15 @@ def test_guidance_contains_cross_workflow_quality_gates() -> None:
         "native feature tree",
     ]
 
+    # Build corpus: core + all 7 topic guides
+    corpus = PARAMETRIC_PARTS_GUIDANCE
+    for topic in GUIDE_TOPICS:
+        corpus += "\n" + load_guide(topic)
+
     for phrase in required_phrases:
-        assert phrase in PARAMETRIC_PARTS_GUIDANCE
+        assert phrase in corpus, (
+            f"Required phrase missing from delivered corpus: {phrase!r}"
+        )
 
 
 @pytest.mark.asyncio
@@ -146,8 +155,7 @@ async def test_parametric_prompts_are_focused_and_task_specific() -> None:
     )
     assert "A slotted motor plate" in design
     assert "/tmp/fixture" in design
-    assert "create_sketch" in design
-    assert "pad_sketch" in design
+    assert PARAMETRIC_PARTS_GUIDANCE in design
     assert "build(doc, parameters)" not in design
 
     review = await mcp._registered_prompts["review_parametric_part"]("fixture")
