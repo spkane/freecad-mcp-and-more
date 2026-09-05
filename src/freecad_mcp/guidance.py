@@ -11,3 +11,32 @@ def get_parametric_parts_guidance() -> str:
 
 
 PARAMETRIC_PARTS_GUIDANCE = get_parametric_parts_guidance()
+
+GUIDE_DIRECTORY = Path(__file__).with_name("guides")
+
+GUIDE_TOPICS: tuple[str, ...] = (
+    "brief",
+    "visual-evidence",
+    "parameters",
+    "features",
+    "variants",
+    "repair",
+    "delivery",
+)
+
+
+def load_guide(topic: str) -> str:
+    """Return one progressive guide topic document.
+
+    Args:
+        topic: A topic name from ``GUIDE_TOPICS``.
+
+    Returns:
+        The topic's markdown source.
+
+    Raises:
+        KeyError: If the topic is not in ``GUIDE_TOPICS``.
+    """
+    if topic not in GUIDE_TOPICS:
+        raise KeyError(f"unknown guide topic: {topic}")
+    return (GUIDE_DIRECTORY / f"{topic}.md").read_text(encoding="utf-8")
