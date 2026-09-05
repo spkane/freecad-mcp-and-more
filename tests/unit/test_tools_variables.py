@@ -386,6 +386,47 @@ async def test_bind_expressions_explains_why_a_recompute_failed(
 
 
 @pytest.mark.asyncio
+async def test_set_expression_explains_why_a_recompute_failed(
+    register_tools: dict[str, object], mock_bridge: AsyncMock
+) -> None:
+    """`set_expression` must diagnose a failure as `bind_expressions` does.
+
+    Both tools bind an expression and recompute, so both hit the same unit
+    mismatches and the same sketch solver failures. Fixing only one left a
+    live run reading `Recompute failed: [{'name': 'Door', 'state':
+    ['Touched', 'Invalid', 'Expanded']}]` while FreeCAD's Report view named
+    the offending expression and its operator.
+    """
+    mock_bridge.execute_python.return_value = ExecutionResult(
+        success=True,
+        result={
+            "document_ref": {"name": "Lighthouse", "revision": "rev_2"},
+            "object_name": "Door",
+            "property_path": "Length",
+            "expression": "Variables.base_diameter / 2 + 8",
+        },
+        stdout="",
+        stderr="",
+        execution_time_ms=10.0,
+    )
+
+    set_expression = register_tools["set_expression"]
+    await set_expression(  # type: ignore[operator]
+        object_name="Door",
+        property_path="Length",
+        expression="Variables.base_diameter / 2 + 8",
+        doc_name="Lighthouse",
+    )
+
+    code = mock_bridge.execute_python.call_args.args[0]
+    assert "object_diagnostics(candidate)" in code
+    assert '"diagnosis"' in code
+    assert "obj.evalExpression(expression)" in code
+    assert "expression error: " in code
+    compile(code, "<set_expression>", "exec")
+
+
+@pytest.mark.asyncio
 async def test_bind_expressions_rejects_duplicate_targets(
     register_tools: dict[str, object], mock_bridge: AsyncMock
 ) -> None:

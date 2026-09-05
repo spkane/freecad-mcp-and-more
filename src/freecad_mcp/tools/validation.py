@@ -10,6 +10,8 @@ may fail or create invalid geometry.
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from freecad_mcp.tools.utils import WORKFLOW_HELPERS
+
 
 def register_validation_tools(
     mcp: Any, get_bridge: Callable[[], Awaitable[Any]]
@@ -266,6 +268,8 @@ else:
         code = f"""
 import FreeCAD
 
+{WORKFLOW_HELPERS}
+
 doc_name = {doc_name!r}
 require_single_solid = {require_single_solid!r}
 
@@ -358,6 +362,20 @@ else:
         if is_valid:
             valid_count += 1
 
+    # A name alone does not say what is wrong. FreeCAD holds the reason --
+    # the failed feature's message, or a sketch solver's redundant and
+    # conflicting constraint indices -- so report it alongside the name.
+    diagnostics = {{}}
+    for name in set(
+        invalid_objects + objects_with_errors + objects_needing_recompute
+    ):
+        candidate = doc.getObject(name)
+        if candidate is None:
+            continue
+        diagnosis = object_diagnostics(candidate)
+        if diagnosis:
+            diagnostics[name] = diagnosis
+
     # Build summary
     if valid_count == total_objects and not objects_with_errors:
         summary = f"Document '{{doc.Name}}' is healthy: all {{total_objects}} objects are valid"
@@ -393,6 +411,7 @@ else:
         "recompute_needed": len(objects_needing_recompute) > 0,
         "solid_counts": solid_counts,
         "single_solid_violations": single_solid_violations,
+        "diagnostics": diagnostics,
         "summary": summary
     }}
 """

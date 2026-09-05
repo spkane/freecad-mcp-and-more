@@ -467,6 +467,32 @@ class TestValidationTools:
 
     # ========== safe_execute tests ==========
 
+    @pytest.mark.asyncio
+    async def test_validate_document_reports_why_each_object_is_invalid(
+        self, register_tools, mock_bridge
+    ):
+        """A name alone does not tell an agent what to repair.
+
+        `validate_document` is the tool an agent reaches for when it wants
+        to know what is wrong, so it must carry FreeCAD's own reason next
+        to each flagged name, not just the name.
+        """
+        mock_bridge.execute_python.return_value = ExecutionResult(
+            success=True,
+            result={"valid": True, "doc_name": "Lighthouse", "diagnostics": {}},
+            stdout="",
+            stderr="",
+            execution_time_ms=5.0,
+        )
+
+        validate_document = register_tools["validate_document"]
+        await validate_document(doc_name="Lighthouse")
+
+        code = mock_bridge.execute_python.call_args.args[0]
+        assert "object_diagnostics(candidate)" in code
+        assert '"diagnostics": diagnostics' in code
+        compile(code, "<validate_document>", "exec")
+
 
 class TestValidationToolsRegistration:
     """Tests for validation tools registration."""

@@ -263,15 +263,19 @@ if expression_diagnostics:
     )
 
 doc.recompute()
-invalid_objects = [
-    {{"name": candidate.Name, "state": list(candidate.State)}}
-    for candidate in doc.Objects
-    if (
+invalid_objects = []
+for candidate in doc.Objects:
+    if not (
         "Invalid" in candidate.State
         or "Error" in candidate.State
         or "Touched" in candidate.State
-    )
-]
+    ):
+        continue
+    entry = {{"name": candidate.Name, "state": list(candidate.State)}}
+    diagnosis = object_diagnostics(candidate)
+    if diagnosis:
+        entry["diagnosis"] = diagnosis
+    invalid_objects.append(entry)
 if invalid_objects:
     collect_expression_evaluation_errors(definitions, set())
     raise RuntimeError(
@@ -658,17 +662,26 @@ property_path = {property_path!r}
 expression = {expression!r}
 obj.setExpression(property_path, expression)
 doc.recompute()
-invalid_objects = [
-    {{"name": candidate.Name, "state": list(candidate.State)}}
-    for candidate in doc.Objects
-    if (
+invalid_objects = []
+for candidate in doc.Objects:
+    if not (
         "Invalid" in candidate.State
         or "Error" in candidate.State
         or "Touched" in candidate.State
-    )
-]
+    ):
+        continue
+    entry = {{"name": candidate.Name, "state": list(candidate.State)}}
+    diagnosis = object_diagnostics(candidate)
+    if diagnosis:
+        entry["diagnosis"] = diagnosis
+    invalid_objects.append(entry)
 if invalid_objects:
-    raise RuntimeError(f"Recompute failed: {{invalid_objects}}")
+    detail = f"Recompute failed: {{invalid_objects}}"
+    try:
+        obj.evalExpression(expression)
+    except Exception as exc:
+        detail += "; expression error: " + str(exc).replace("\\n", " ")
+    raise RuntimeError(detail)
 resulting_expressions = {{
     path: str(bound_expression)
     for path, bound_expression in getattr(obj, "ExpressionEngine", [])
