@@ -1,125 +1,100 @@
 # Native Parametric FreeCAD Parts
 
-Use the focused MCP commands to build an editable native FreeCAD PartDesign
-feature tree. The saved FCStd document is the authoritative model. Arbitrary
-Python execution is deliberately absent from the default profile.
+Build editable native FreeCAD PartDesign models through typed MCP commands.
+The saved FCStd feature tree is the authoritative artifact. STEP files and
+images are derived from it. Arbitrary Python execution is deliberately absent.
 
-## 1. Plan The Model
+## Use This Server When
 
-Before changing FreeCAD:
+Use it for native parametric solid parts: sketched profiles, pads, pockets,
+revolutions, grooves, lofts, patterns, and dress-up features driven by named
+variables and expressions. Do not use it for mesh repair, CAM, rendering, or
+assemblies of purchased components.
 
-1. Define the coordinate frame, units, Origin planes, and named datums.
-2. Separate governing parameters from derived dimensions and placements.
-3. Plan one semantically named `PartDesign::Body` for each contiguous part.
-4. Choose a stable feature order: primary additive form, cuts, patterns, then
-   topology-sensitive fillets and chamfers.
-5. Define the parameter edits, measurements, and invalid combinations that must
-   be verified before delivery.
+## Default Assumptions
 
-## 2. Build Through Native MCP Commands
+State any departure from these in your handoff.
 
-Prefer task-oriented operations that complete one coherent modeling step:
+- Millimeters for length, degrees for angle, with explicit units in variables.
+- Origin planes and named datums as supports, in preference to model faces.
+- One semantically named `PartDesign::Body` per contiguous part.
+- Governing values in one `App::VarSet`; derived values bound by expression.
 
-1. Call `create_document`, then `create_partdesign_body`.
-2. Call `define_variables` once with a compact batch of governing dimensions and
-   derived formulas. Store them in a native `App::VarSet`; use explicit units
-   for lengths and angles. Use valid FreeCAD internal names: letters, numbers,
-   and underscores, starting with a letter or underscore. A rejected batch
-   reports each failing property and expression and rolls back every definition.
-3. Call `create_constrained_sketch` with typed lines, arcs, circles, rectangles,
-   points, and constraints. Use request-local symbolic IDs instead of guessing
-   geometry indices. Require closed profiles and `FullyConstrained` when the
-   sketch is ready to drive a solid feature. For signed `distance_x` and
-   `distance_y`, a whole line measures end minus start, one point measures its
-   coordinate from the sketch origin, and two points measure second minus first.
-   Check the returned `solved_geometry` before creating the dependent feature.
-4. Call `bind_expressions` once for a related group of feature properties or
-   sketch dimensions. Constraint paths use forms such as `Constraints[8]`, and
-   qualified variable references use forms such as `Variables.tower_height`.
-5. Create native features with `pad_sketch`, `pocket_sketch`,
-   `revolution_sketch`, `groove_sketch`, `loft_sketches`, and native pattern or
-   dress-up tools. Feature results already include recompute status, Body Tip,
-   solid count, shape summary, and inputs for the next operation. Additive
-   features must increase Body volume; no-effect and volume-reducing results
-   roll back. A pattern must become the Body Tip and retain exactly one solid.
-6. Use `query_objects` for bounded name, label, or type searches. Request
-   `detailed` output only for a small result set; do not repeatedly retrieve the
-   complete document tree.
+## Required Workflow
 
-Task-oriented mutations enable document undo, recompute once, validate affected
-objects, and roll back the entire transaction on failure. Carry the returned
-`document_ref` forward and pass `expected_revision` wherever the next tool
-accepts it.
+Scale depth to the task. A simple bracket needs a short brief and a few
+checks. A parametric family with variants needs the full protocol. The floors
+below apply either way.
 
-Granular `create_sketch`, `add_sketch_line`, `add_sketch_constraint`,
-`set_expression`, and `get_sketch_info` tools remain available for local repair.
-Use them only when a declarative operation reports a specific invalid input or
-solver conflict.
-
-Do not use generic `PartDesign::Feature` containers to disguise static shapes
-as editable history. Prefer Origin planes and named datums over generated
-`FaceN` or `EdgeN` references. If a generated topology reference is necessary,
-record it and prove that required parameter edits survive save and reopen.
-
-## 3. Preserve Design Intent
-
-- Keep driving sketches inside the intended Body and require
-  `FullyConstrained`. Sketch closure and solver success do not prove that all
-  degrees of freedom are constrained.
-- Use expressions instead of copying derived numeric values between features.
-- Give intended unions real overlap; point or tangent contact is not reliable
-  connectivity.
-- Extend through-cuts beyond both sides of the target material.
-- Use `create_datum_plane` when a stable offset support is clearer than a Body
-  face.
-- Place fillets and chamfers late because their edge references are sensitive to
-  upstream topology changes.
-- Use descriptive internal names for sketches, datums, and features.
-
-## 4. Work Incrementally
-
+1. Classify the request: new part, edit of an existing document, parameter
+   study, inspection, or repair.
+1. Load only the guide topics the task triggers. They are listed at the end.
+1. Write the brief before touching FreeCAD. Turn the request into explicit
+   dimensions, units, coordinate frame, feature intent, governing parameters,
+   and validation targets. Read `freecad://guide/brief` whenever the request
+   arrives as prose, an image, or a drawing rather than an explicit spec.
+   State assumptions instead of asking, unless a choice is genuinely blocking.
+1. Plan the tree: parameters, datums, Body, and feature order. Primary
+   additive form, then cuts, then patterns, then topology-sensitive fillets
+   and chamfers. See `freecad://guide/features`.
 1. Call `get_connection_status` and `get_freecad_version` once.
-2. Create one sketch or feature group at a time.
-3. Trust successful `create_constrained_sketch` solver and closure results. Use
-   `get_sketch_info` only to diagnose a rejected sketch or perform local repair.
-4. Trust the local validation returned by feature mutations. Use
-   `query_objects` when a specific object or relationship remains uncertain.
-5. Call `validate_document(require_single_solid=true)` after meaningful feature
-   groups and before delivery. Treat invalid,
-   error, or touched objects as failures rather than continuing on stale state.
-6. On a bad operation, use `undo`, repair the smallest responsible inputs, and
-   rerun only that operation. Do not stack compensating features over an invalid
-   tree.
-7. Use `get_screenshot` only after deterministic checks pass. Inspect the image
-   for silhouette, orientation, missing features, and accidental intersections.
-   Pixels do not prove dimensions, connectivity, or editability.
+1. Create the document, the Body, and the variable set. Define governing and
+   derived variables in one compact `define_variables` batch. See
+   `freecad://guide/parameters`.
+1. Build one sketch or feature group at a time. Trust the local validation
+   returned by each mutation; carry `document_ref` and `expected_revision`
+   forward. Use `query_objects` for bounded lookups rather than retrieving the
+   whole tree.
+1. Verify numerically after each meaningful feature group with
+   `validate_document(require_single_solid=true)`.
+1. Verify visually. Deterministic checks prove validity, not intent. Read
+   `freecad://guide/visual-evidence` before capturing, and use
+   `capture_feature_view` to look along each opening's own support normal.
+1. Save early. The moment the model first satisfies the brief, save the FCStd
+   and export the STEP, before any refinement.
+1. On a rejection, repair the smallest responsible input and rerun only that
+   operation. See `freecad://guide/repair`.
+1. Produce the variants and evidence the brief actually asks for. See
+   `freecad://guide/variants` and `freecad://guide/delivery`.
 
-## 5. Prove Parametricity And Persistence
+## Handoff
 
-For the nominal model and every required governing edit:
+Report the saved FCStd path, the exported STEP path, the retained images you
+inspected, the checks that actually ran with their results, the assumptions
+you took, and the limitations that remain. Report tool versions, the ordered
+feature tree, and any topology-sensitive reference you could not avoid.
 
-1. Update only the documented governing variable with `define_variables`; this
-   operation recomputes the document. Do not reconstruct or rebind features.
-2. Inspect the changed feature and protected controls independently with a
-   bounded `query_objects` request.
-3. Do not issue a separate `recompute_document` call unless a repair operation
-   explicitly documents that it does not recompute.
-4. Require the intended Body Tip, valid positive-volume BREP geometry, and the
-   intended solid count.
-5. Save the FCStd, close it, reopen it, apply another documented parameter edit,
-   and validate the recomputed document again.
-6. Export the validated final Body or Tip with `export_step`, re-import it in a
-   clean document, and validate the BREP. STL is a mesh deliverable, not BREP
-   evidence.
+## Non-Negotiables
 
-The native feature tree, `App::VarSet` properties, sketch dimensions, and
-expression links are the reproducibility record. A generated Python file is not
-required by the default workflow.
+These hold for every part, however small.
 
-## 6. Finish With Evidence
+- Every driving sketch reports `FullyConstrained` before the feature that
+  consumes it is created.
+- `validate_document(require_single_solid=true)` passes before any claim that
+  the part is finished.
+- The FCStd is saved and the STEP exported as soon as the shape first
+  satisfies the brief, before any refinement. An unsaved model is not a
+  deliverable.
+- Every semantic opening or profile is seen along its own support normal,
+  through `capture_feature_view`, before it is called correct.
+- A `warnings` entry on a mutation result is unfinished work. Resolve it, or
+  record why it is acceptable.
+- Derived values are expressions. Never copy a calculated number between
+  features.
+- Intended unions have real overlap; point or tangent contact is not
+  connectivity.
+- Report only checks that actually ran. Never describe an image you did not
+  receive and inspect.
 
-Retain the nominal FCStd and STEP files, parameter manifest, validation results,
-variant measurements, deterministic renders, and a concise README. Report tool
-versions, assumptions, feature order, variable types, expression bindings,
-measurements, repairs, limitations, and topology-sensitive references. Ensure
-all final evidence describes the same saved native document.
+## Progressive Guide Topics
+
+Read these when their trigger applies.
+
+- `freecad://guide/brief` — turning prose, an image, or a drawing into a brief.
+- `freecad://guide/visual-evidence` — the capture protocol. Read before
+  capturing evidence.
+- `freecad://guide/parameters` — variable sets, units, and expression binding.
+- `freecad://guide/features` — feature order, datums, overlap, and through-cuts.
+- `freecad://guide/variants` — isolated one-edit variant transactions.
+- `freecad://guide/repair` — `VALIDATION_FAILED`, `STALE_REVISION`, and undo.
+- `freecad://guide/delivery` — manifests, READMEs, and re-import evidence.

@@ -62,3 +62,44 @@ class TestGuideContent:
         content = load_guide("repair")
         assert "VALIDATION_FAILED" in content
         assert "STALE_REVISION" in content
+
+
+class TestCoreGuide:
+    """The core is what every session receives as MCP instructions."""
+
+    def test_core_points_at_every_topic(self):
+        """A topic nobody is told about will never be read."""
+        from freecad_mcp.guidance import GUIDE_TOPICS, PARAMETRIC_PARTS_GUIDANCE
+
+        for topic in GUIDE_TOPICS:
+            assert f"freecad://guide/{topic}" in PARAMETRIC_PARTS_GUIDANCE
+
+    def test_core_points_at_no_unregistered_topic(self):
+        """Every pointer in the core resolves to a real topic."""
+        import re
+
+        from freecad_mcp.guidance import GUIDE_TOPICS, PARAMETRIC_PARTS_GUIDANCE
+
+        referenced = set(
+            re.findall(r"freecad://guide/([a-z-]+)", PARAMETRIC_PARTS_GUIDANCE)
+        )
+        assert referenced == set(GUIDE_TOPICS)
+
+    def test_core_states_the_floors(self):
+        """The rules that never scale down are stated in the always-on text."""
+        from freecad_mcp.guidance import PARAMETRIC_PARTS_GUIDANCE
+
+        for rule in [
+            "FullyConstrained",
+            "require_single_solid=true",
+            "before any refinement",
+            "capture_feature_view",
+            "warnings",
+        ]:
+            assert rule in PARAMETRIC_PARTS_GUIDANCE
+
+    def test_core_stays_compact(self):
+        """The core is a spine, not the whole methodology."""
+        from freecad_mcp.guidance import PARAMETRIC_PARTS_GUIDANCE
+
+        assert len(PARAMETRIC_PARTS_GUIDANCE.splitlines()) <= 130
