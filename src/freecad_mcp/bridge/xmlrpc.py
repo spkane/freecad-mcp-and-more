@@ -29,6 +29,7 @@ from freecad_mcp.bridge.base import (
     ConnectionStatus,
     DocumentInfo,
     ExecutionResult,
+    FeatureViewResult,
     FreecadBridge,
     ObjectInfo,
     ScreenshotResult,
@@ -836,7 +837,7 @@ _result_ = {{
         width: int,
         height: int,
         doc_name: str | None,
-    ) -> ScreenshotResult:
+    ) -> FeatureViewResult:
         """Capture a screenshot aimed along a named support's normal."""
         code = build_feature_view_code(
             normal_source=normal_source,
@@ -851,20 +852,14 @@ _result_ = {{
         result = await self.execute_python(code, transaction=None)
 
         if result.success and result.result and result.result.get("success"):
-            return ScreenshotResult(
-                success=True,
-                data=result.result["data"],
-                format=result.result["format"],
-                width=result.result["width"],
-                height=result.result["height"],
-            )
+            return FeatureViewResult.from_payload(result.result)
 
         error = (
             (result.result or {}).get("error")
             if result.success and result.result
             else None
         )
-        return ScreenshotResult(
+        return FeatureViewResult(
             success=False,
             error=error
             or result.error_traceback
@@ -872,6 +867,10 @@ _result_ = {{
             or "Failed to capture feature view",
             width=width,
             height=height,
+            normal_source=normal_source,
+            side=side,
+            focus=focus,
+            padding=padding,
         )
 
     async def set_view(

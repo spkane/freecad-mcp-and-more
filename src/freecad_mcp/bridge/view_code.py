@@ -21,15 +21,24 @@ The generated code always, in this order:
 3. Resolves `normal_source` to an object and reads its
    `Placement.Rotation` applied to `Vector(0, 0, 1)`, returning a structured
    error when the object is missing or has no `Placement`.
-4. Saves the current camera and the current `Visibility` of every object it
+4. Resolves every `focus` name against the document, returning a structured
+   error naming the ones that do not exist. `Gui.Selection.addSelection`
+   ignores an unknown name silently, so without this check a typo produced a
+   successful capture of nothing.
+5. Saves the current camera and the current `Visibility` of every object it
    is about to hide.
-5. Optionally hides datum planes, origins, and construction sketches.
-6. Points the camera along the resolved (optionally negated) normal and
+6. Optionally hides datum planes, origins, and construction sketches.
+7. Points the camera along the resolved (optionally negated) normal and
    frames either the whole document or a focused selection.
-7. Saves the capture to a temporary PNG and base64-encodes it.
-8. Restores visibility and the camera in a `finally:` block, so a capture
+8. Saves the capture to a temporary PNG and base64-encodes it.
+9. Restores visibility and the camera in a `finally:` block, so a capture
    that raises partway through still leaves the operator's FreeCAD exactly
    as it found it.
+
+On success the result carries the evidence metadata a model needs in order
+to state what it actually looked at: the sign-resolved `camera_direction`,
+the `normal_source`, the resolved `placement`, the `focus` names, the
+`hidden_objects`, and the echoed `padding`.
 """
 
 
@@ -53,10 +62,13 @@ def build_feature_view_code(
             side (camera looks along the normal itself).
         focus: Object names to fit the view to via `Gui.Selection` and
             `view.fitSelection()`, or `None` to fit the whole document with
-            `view.fitAll()`.
-        padding: Fractional margin to leave around the framed geometry.
-            Recorded in the result for the caller; framing itself relies on
-            FreeCAD's own `fitAll`/`fitSelection` margins.
+            `view.fitAll()`. Every name is resolved against the document
+            first; an unresolvable name is a structured error, not a picture
+            of nothing.
+        padding: Fractional margin requested around the framed geometry.
+            Reserved: framing itself relies on FreeCAD's own
+            `fitAll`/`fitSelection` margins. The value is echoed back in the
+            result so the caller can see what it asked for.
         hide_construction: Whether to hide datum planes, origins, and
             construction sketches for the duration of the capture.
         width: Image width in pixels.
@@ -74,6 +86,7 @@ def build_feature_view_code(
 
     return f"""
 import base64
+import math
 import tempfile
 import os
 
@@ -95,10 +108,16 @@ def _is_construction_helper(obj):
     return type_id == "Sketcher::SketchObject"
 
 
+# Bind the document name to a variable first. Interpolating it straight into
+# an `is None` comparison would emit `if 'Target' is None`, which is a
+# SyntaxWarning in the operator's FreeCAD console and a SyntaxError under
+# `-W error`.
+_doc_name = {doc_name!r}
+
 if not FreeCAD.GuiUp:
     _result_ = {{"success": False, "error": "GUI not available"}}
 else:
-    doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+    doc = FreeCAD.ActiveDocument if _doc_name is None else FreeCAD.getDocument(_doc_name)
     if doc is None:
         _result_ = {{"success": False, "error": "No document found"}}
     else:
@@ -109,8 +128,19 @@ else:
         _hide_construction = {hide_construction!r}
 
         _obj = doc.getObject(_normal_source)
+
+        # Gui.Selection.addSelection ignores a name that does not exist, so
+        # a typo would otherwise fit nothing and report success with a
+        # picture of the whole model -- or of nothing at all.
+        _missing_focus = [_n for _n in _focus if doc.getObject(_n) is None]
+
         if _obj is None or not hasattr(_obj, "Placement"):
             _result_ = {{"success": False, "error": {error_message!r}}}
+        elif _missing_focus:
+            _result_ = {{
+                "success": False,
+                "error": "focus objects not found: " + ", ".join(_missing_focus),
+            }}
         else:
             # Act on the document that was asked for, not whichever tab the
             # GUI happens to be showing. Without this, a named document that
@@ -156,7 +186,8 @@ else:
                 if view is None:
                     _result_ = {{"success": False, "error": "No active view"}}
                 else:
-                    _normal = _obj.Placement.Rotation.multVec(
+                    _placement = _obj.Placement
+                    _normal = _placement.Rotation.multVec(
                         FreeCAD.Vector(0, 0, 1)
                     )
                     if _side == "back":
@@ -216,6 +247,22 @@ else:
                             _direction.z,
                         ],
                         "normal_source": _normal_source,
+                        "side": _side,
+                        "padding": _padding,
+                        "placement": {{
+                            "position": [
+                                _placement.Base.x,
+                                _placement.Base.y,
+                                _placement.Base.z,
+                            ],
+                            "axis": [
+                                _placement.Rotation.Axis.x,
+                                _placement.Rotation.Axis.y,
+                                _placement.Rotation.Axis.z,
+                            ],
+                            "angle_deg": math.degrees(_placement.Rotation.Angle),
+                            "normal": [_normal.x, _normal.y, _normal.z],
+                        }},
                         "focus": _focus if _focus else None,
                         "hidden_objects": _hidden_objects,
                     }}

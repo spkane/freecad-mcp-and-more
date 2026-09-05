@@ -7,6 +7,7 @@ has excellent screenshot handling with view type detection.
 
 import base64
 import binascii
+import hashlib
 import itertools
 import json
 import os
@@ -72,6 +73,48 @@ def _screenshot_error(
                         "success": False,
                         "error": message,
                         "view_angle": view_angle,
+                        "document": doc_name,
+                    },
+                    indent=2,
+                ),
+            )
+        ],
+    )
+
+
+def _feature_view_error(
+    message: str,
+    normal_source: str,
+    side: str,
+    doc_name: str | None,
+) -> CallToolResult:
+    """Report a failed support-normal capture as an explicit tool error.
+
+    A feature view has no `view_angle`: the camera direction is derived from
+    a placement, not chosen from the eight fixed angles. Reporting the
+    `normal_source` under a `view_angle` key told the model something untrue
+    about what it had asked for, so this path has its own shape.
+
+    Args:
+        message: The failure to report.
+        normal_source: The object whose placement the capture asked for.
+        side: The requested side, `"front"` or `"back"`.
+        doc_name: The requested document, or None for the active one.
+
+    Returns:
+        A `CallToolResult` marked as an error, carrying the failure as JSON.
+    """
+    return CallToolResult(
+        isError=True,
+        content=[
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "success": False,
+                        "error": message,
+                        "normal_source": normal_source,
+                        "side": side,
                         "document": doc_name,
                     },
                     indent=2,
@@ -220,13 +263,16 @@ def register_view_tools(mcp: Any, get_bridge: Callable[[], Awaitable[Any]]) -> N
 
         Returns:
             A PNG image content block plus a JSON metadata block carrying the
-            camera direction, resolved source, focus names, hidden objects,
-            and the retained path.
+            sign-resolved camera_direction, the normal_source and side, the
+            resolved placement, the focus names, the hidden_objects that were
+            hidden and restored, the padding, the retained path, and the
+            image's sha256.
         """
         if side not in ("front", "back"):
-            return _screenshot_error(
+            return _feature_view_error(
                 f"Invalid side: {side}. Options: ['front', 'back']",
                 normal_source,
+                side,
                 doc_name,
             )
 
@@ -243,34 +289,50 @@ def register_view_tools(mcp: Any, get_bridge: Callable[[], Awaitable[Any]]) -> N
         )
 
         if not result.success or not result.data:
-            return _screenshot_error(
+            return _feature_view_error(
                 result.error or "Feature view capture failed",
                 normal_source,
+                side,
                 doc_name,
             )
 
         try:
             payload = base64.b64decode(result.data, validate=True)
         except (binascii.Error, ValueError):
-            return _screenshot_error(
+            return _feature_view_error(
                 "Feature view capture returned malformed image data",
                 normal_source,
+                side,
                 doc_name,
             )
 
         path = _persist_screenshot(
             payload, doc_name, f"{normal_source}_{side}", next(_SCREENSHOT_SEQUENCE)
         )
+        # The bridge resolves the camera server-side, so these fields are the
+        # only record of which of +/-normal was actually looked along and
+        # which of the operator's objects were hidden to get the shot. A
+        # model asked to state its visual comparison explicitly cannot do so
+        # without them, so they are reported, not recomputed.
         metadata = {
             "success": True,
             "format": result.format or "png",
             "width": result.width,
             "height": result.height,
-            "normal_source": normal_source,
-            "side": side,
-            "focus": focus,
+            "normal_source": getattr(result, "normal_source", None) or normal_source,
+            "side": getattr(result, "side", None) or side,
+            "camera_direction": getattr(result, "camera_direction", None),
+            "placement": getattr(result, "placement", None),
+            "focus": getattr(result, "focus", None) if focus else None,
+            "hidden_objects": list(getattr(result, "hidden_objects", None) or []),
+            "padding": (
+                result.padding
+                if getattr(result, "padding", None) is not None
+                else padding
+            ),
             "document": doc_name,
             "path": path,
+            "image_sha256": hashlib.sha256(payload).hexdigest(),
         }
         return CallToolResult(
             content=[

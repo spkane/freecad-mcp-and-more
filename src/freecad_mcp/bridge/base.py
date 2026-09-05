@@ -188,6 +188,83 @@ class ScreenshotResult:
 
 
 @dataclass
+class FeatureViewResult(ScreenshotResult):
+    """Result of a capture aimed along a named support's own normal.
+
+    `ScreenshotResult` describes one of eight fixed global angles, so its
+    `view_angle` says everything there is to say about where the camera was.
+    A support-normal capture has no such fixed angle: the direction is
+    derived at runtime from the resolved object's placement, and the capture
+    may hide construction helpers on the way. A model asked to state its
+    visual comparison explicitly needs those facts back -- which of
+    +/-normal it actually looked along, and whose datum planes it hid -- so
+    they travel in their own fields instead of being recomputed or guessed.
+
+    Attributes:
+        normal_source: Name of the object whose placement supplied the normal.
+        side: `"front"` (the camera looks against the normal) or `"back"`.
+        camera_direction: The world-space direction the camera looked along,
+            as `(x, y, z)`. Sign-resolved, so it records which of +/-normal
+            was actually used.
+        placement: The resolved support placement: `position`, rotation
+            `axis`, rotation `angle_deg`, and the derived `normal`.
+        focus: Object names the view was fitted to, or None when the whole
+            document was framed.
+        hidden_objects: Names of the objects hidden for the capture and
+            restored afterwards.
+        padding: The requested framing padding, echoed back. Reserved: the
+            framing itself uses FreeCAD's own fit margins.
+    """
+
+    normal_source: str | None = None
+    side: str | None = None
+    camera_direction: tuple[float, float, float] | None = None
+    placement: dict[str, Any] | None = None
+    focus: list[str] | None = None
+    hidden_objects: list[str] = field(default_factory=list)
+    padding: float | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "FeatureViewResult":
+        """Build a successful result from the generated code's `_result_`.
+
+        All three bridges run the same generated source and therefore get
+        the same payload back; mapping it here keeps the metadata contract
+        in one place instead of three, which is how the fields came to be
+        dropped in the first place.
+
+        Args:
+            payload: The `_result_` dictionary produced inside FreeCAD by
+                `build_feature_view_code`, with `success` already true.
+
+        Returns:
+            A populated `FeatureViewResult`.
+        """
+        direction = payload.get("camera_direction")
+        return cls(
+            success=True,
+            data=payload["data"],
+            format=payload["format"],
+            width=payload["width"],
+            height=payload["height"],
+            normal_source=payload.get("normal_source"),
+            side=payload.get("side"),
+            camera_direction=(
+                (
+                    float(direction[0]),
+                    float(direction[1]),
+                    float(direction[2]),
+                )
+                if direction is not None
+                else None
+            ),
+            placement=payload.get("placement"),
+            focus=payload.get("focus"),
+            hidden_objects=list(payload.get("hidden_objects") or []),
+            padding=payload.get("padding"),
+        )
+
+
 @dataclass
 class WorkbenchInfo:
     """Information about a FreeCAD workbench.
@@ -524,7 +601,7 @@ class FreecadBridge(ABC):
         width: int,
         height: int,
         doc_name: str | None,
-    ) -> ScreenshotResult:
+    ) -> FeatureViewResult:
         """Capture a screenshot aimed along a named support's normal.
 
         Unlike `get_screenshot`, which can only aim the camera at one of
@@ -548,7 +625,9 @@ class FreecadBridge(ABC):
             doc_name: Document name (uses active if None).
 
         Returns:
-            ScreenshotResult with image data or a structured error.
+            FeatureViewResult with the image data plus the resolved camera
+            direction, placement, focus, and hidden objects -- or a
+            structured error.
         """
 
     # =========================================================================
