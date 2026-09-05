@@ -120,42 +120,66 @@ else:
                 if FreeCADGui.ActiveDocument
                 else None
             )
-            if _previous_doc != doc.Name:
-                FreeCADGui.setActiveDocument(doc.Name)
-                FreeCADGui.updateGui()
 
-            view = FreeCADGui.ActiveDocument.ActiveView
-            if view is None:
-                _result_ = {{"success": False, "error": "No active view"}}
-            else:
-                _normal = _obj.Placement.Rotation.multVec(FreeCAD.Vector(0, 0, 1))
-                if _side == "back":
-                    _direction = _normal
-                else:
-                    _direction = FreeCAD.Vector(-_normal.x, -_normal.y, -_normal.z)
+            # Defaults for the finally block below. Every mutation this
+            # code can perform -- switching the active document, hiding
+            # objects, moving the camera -- happens only after this point,
+            # and the finally block below covers all of it unconditionally,
+            # including the early "no active view" return and any
+            # exception raised while framing or saving the image. A
+            # capture that fails partway through must never leave the
+            # operator's FreeCAD with a hidden datum plane, a moved
+            # camera, or the wrong document active.
+            view = None
+            _saved_camera = None
+            _saved_visibility = {{}}
+            _hidden_objects = []
 
-                # Save state before anything is changed, so a capture that
-                # raises partway through still leaves FreeCAD as it was.
-                _saved_camera = view.getCamera()
-                _saved_visibility = {{}}
-                _hidden_objects = []
-
-                def _restore_visibility():
-                    for _name, _visible in _saved_visibility.items():
+            def _restore_visibility():
+                for _name, _visible in _saved_visibility.items():
+                    try:
                         _o = doc.getObject(_name)
                         if _o is not None and getattr(_o, "ViewObject", None):
                             _o.ViewObject.Visibility = _visible
+                    except Exception:
+                        # One object failing to restore must not stop the
+                        # rest of the objects, or the camera, from being
+                        # restored.
+                        pass
 
-                if _hide_construction:
-                    for _o in doc.Objects:
-                        if _is_construction_helper(_o) and getattr(
-                            _o, "ViewObject", None
-                        ):
-                            _saved_visibility[_o.Name] = _o.ViewObject.Visibility
-                            _o.ViewObject.Visibility = False
-                            _hidden_objects.append(_o.Name)
+            try:
+                if _previous_doc != doc.Name:
+                    FreeCADGui.setActiveDocument(doc.Name)
+                    FreeCADGui.updateGui()
 
-                try:
+                view = FreeCADGui.ActiveDocument.ActiveView
+                if view is None:
+                    _result_ = {{"success": False, "error": "No active view"}}
+                else:
+                    _normal = _obj.Placement.Rotation.multVec(
+                        FreeCAD.Vector(0, 0, 1)
+                    )
+                    if _side == "back":
+                        _direction = _normal
+                    else:
+                        _direction = FreeCAD.Vector(
+                            -_normal.x, -_normal.y, -_normal.z
+                        )
+
+                    # Save the camera before anything else is changed.
+                    _saved_camera = view.getCamera()
+
+                    if _hide_construction:
+                        for _o in doc.Objects:
+                            if _is_construction_helper(_o) and getattr(
+                                _o, "ViewObject", None
+                            ):
+                                _saved_visibility[_o.Name] = (
+                                    _o.ViewObject.Visibility
+                                )
+                                _o.ViewObject.Visibility = False
+                                _hidden_objects.append(_o.Name)
+
                     FreeCADGui.updateGui()
                     view.setViewDirection(_direction)
 
@@ -195,18 +219,20 @@ else:
                         "focus": _focus if _focus else None,
                         "hidden_objects": _hidden_objects,
                     }}
-                finally:
-                    # Restore visibility and camera even if the capture
-                    # raised, so a failed capture never leaves the
-                    # operator's FreeCAD with hidden datum planes or a
-                    # moved camera.
-                    _restore_visibility()
+            finally:
+                # Restore visibility and camera even if the capture
+                # raised, or returned early, so a failed capture never
+                # leaves the operator's FreeCAD with hidden datum planes
+                # or a moved camera.
+                _restore_visibility()
+                if view is not None and _saved_camera is not None:
                     view.setCamera(_saved_camera)
                     FreeCADGui.updateGui()
 
-                    # Put the operator's document back; a read-only capture
-                    # must not switch tabs.
-                    if _previous_doc is not None and _previous_doc != doc.Name:
-                        FreeCADGui.setActiveDocument(_previous_doc)
-                        FreeCADGui.updateGui()
+                # Put the operator's document back; a read-only capture
+                # must not switch tabs, even when it activated the
+                # document and then failed before producing an image.
+                if _previous_doc is not None and _previous_doc != doc.Name:
+                    FreeCADGui.setActiveDocument(_previous_doc)
+                    FreeCADGui.updateGui()
 """

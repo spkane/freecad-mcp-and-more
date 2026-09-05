@@ -208,3 +208,40 @@ class TestFeatureViewCodegen:
         )
         assert '"success": False' in code
         assert "has no resolvable support placement" in code
+
+    def test_activation_and_hiding_happen_inside_the_try(self):
+        """Every mutation must be covered by the try/finally restore.
+
+        `"finally:" in code` alone cannot catch a mutation that sits
+        *before* the `try:` it accompanies -- that mutation is never
+        undone if something later raises. Assert directly on ordering:
+        the document activation and the visibility-hiding assignment must
+        both fall between the `try:` and its `finally:`.
+        """
+        from freecad_mcp.bridge.view_code import build_feature_view_code
+
+        code = build_feature_view_code(
+            normal_source="WindowSketch",
+            side="front",
+            focus=None,
+            padding=0.1,
+            hide_construction=True,
+            width=800,
+            height=600,
+            doc_name=None,
+        )
+        try_index = code.index("try:")
+        finally_index = code.index("finally:")
+        assert try_index < finally_index
+
+        hide_index = code.index("ViewObject.Visibility = False")
+        activate_index = code.index("setActiveDocument(doc.Name)")
+        assert try_index < hide_index < finally_index, (
+            "hiding a construction helper must happen inside the try, or a "
+            "failure after it leaves the object hidden forever"
+        )
+        assert try_index < activate_index < finally_index, (
+            "activating the requested document must happen inside the try, "
+            "or a failure after it leaves the operator's active document "
+            "switched"
+        )
