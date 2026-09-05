@@ -619,8 +619,8 @@ class FreecadBridge(ABC):
                 whole document.
             padding: Requested fractional margin around the framed
                 geometry. Reserved: framing relies on FreeCAD's own
-                `fitAll`/`fitSelection` margins, so implementations
-                echo this value back rather than applying it.
+                fit margins, so implementations echo this value back
+                rather than applying it.
             hide_construction: Whether to hide datum planes, origins, and
                 construction sketches for the duration of the capture.
             width: Image width in pixels.

@@ -381,9 +381,10 @@ class StubView:
         """Record a whole-document framing."""
         self.fit_calls.append("fitAll")
 
-    def fitSelection(self):
-        """Record a focused framing."""
-        self.fit_calls.append("fitSelection")
+    # No fitSelection: FreeCAD 1.1's View3DInventorPy exposes only fitAll,
+    # boxZoom, zoomIn, and zoomOut. Fitting a selection is a Gui command,
+    # delivered through SendMsgToActiveView below. A stub that offered
+    # fitSelection hid a live AttributeError for an entire benchmark run.
 
     def saveImage(self, path, width, height, background):
         """Write a placeholder PNG, or fail partway through the capture."""
@@ -424,11 +425,17 @@ class StubFreeCADGui:
         self.ActiveDocument = gui_document
         self.Selection = StubSelection()
         self.activated_documents = []
+        self.view_messages = []
         self.update_count = 0
 
     def setActiveDocument(self, name):
         """Record which document was made active."""
         self.activated_documents.append(name)
+
+    def SendMsgToActiveView(self, message):
+        """Record a Gui command delivered to the active view."""
+        self.view_messages.append(message)
+        self.ActiveDocument.ActiveView.fit_calls.append(message)
 
     def updateGui(self):
         """Record a GUI flush."""
@@ -624,7 +631,7 @@ class TestFeatureViewExecution:
         assert gui.Selection.added == []
 
     def test_resolvable_focus_fits_the_named_selection(self, clean_capture_files):
-        """A focus that does resolve still reaches `fitSelection`."""
+        """A focus that does resolve frames that selection and nothing else."""
         freecad, gui, view, _doc = _build_stub_environment()
         clean_capture_files.append(view)
 
@@ -632,8 +639,35 @@ class TestFeatureViewExecution:
 
         assert result["success"] is True
         assert gui.Selection.added == [("Target", "Pad")]
-        assert view.fit_calls == ["fitSelection"]
+        assert view.fit_calls == ["ViewSelection"]
         assert result["focus"] == ["Pad"]
+
+    def test_focus_uses_the_view_command_not_a_view_method(self, clean_capture_files):
+        """Regression: `view.fitSelection()` raised AttributeError on FreeCAD 1.1.
+
+        The capture reached a live FreeCAD for the first time during a
+        benchmark run and failed immediately, because `fitSelection` is a
+        `Std_ViewFitSelection` command rather than a `View3DInventorPy`
+        method. Framing must go through the view's message channel.
+        """
+        freecad, gui, view, _doc = _build_stub_environment()
+        clean_capture_files.append(view)
+
+        result = _run_generated(_feature_view_code(focus=["Pad"]), freecad, gui)
+
+        assert result["success"] is True
+        assert gui.view_messages == ["ViewSelection"]
+
+    def test_absent_focus_still_fits_the_whole_document(self, clean_capture_files):
+        """Without a focus the capture frames everything, using no command."""
+        freecad, gui, view, _doc = _build_stub_environment()
+        clean_capture_files.append(view)
+
+        result = _run_generated(_feature_view_code(focus=None), freecad, gui)
+
+        assert result["success"] is True
+        assert view.fit_calls == ["fitAll"]
+        assert gui.view_messages == []
 
     def test_success_payload_carries_every_field_from_payload_reads(
         self, clean_capture_files

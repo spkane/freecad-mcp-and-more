@@ -60,15 +60,15 @@ def build_feature_view_code(
         side: `"front"` to view from the normal's positive side (camera looks
             along the negated normal), or `"back"` to view from the opposite
             side (camera looks along the normal itself).
-        focus: Object names to fit the view to via `Gui.Selection` and
-            `view.fitSelection()`, or `None` to fit the whole document with
-            `view.fitAll()`. Every name is resolved against the document
+        focus: Object names to fit the view to via `Gui.Selection` plus the
+            `ViewSelection` view command, or `None` to fit the whole document
+            with `view.fitAll()`. Every name is resolved against the document
             first; an unresolvable name is a structured error, not a picture
             of nothing.
         padding: Fractional margin requested around the framed geometry.
-            Reserved: framing itself relies on FreeCAD's own
-            `fitAll`/`fitSelection` margins. The value is echoed back in the
-            result so the caller can see what it asked for.
+            Reserved: framing itself relies on FreeCAD's own fit margins.
+            The value is echoed back in the result so the caller can see
+            what it asked for.
         hide_construction: Whether to hide datum planes, origins, and
             construction sketches for the duration of the capture.
         width: Image width in pixels.
@@ -218,7 +218,13 @@ else:
                         Gui.Selection.clearSelection()
                         for _name in _focus:
                             Gui.Selection.addSelection(doc.Name, _name)
-                        view.fitSelection()
+                        # View3DInventorPy has no fitSelection(); fitting a
+                        # selection is the Std_ViewFitSelection command, reached
+                        # through the active view's message channel.
+                        if hasattr(view, "fitSelection"):
+                            view.fitSelection()
+                        else:
+                            FreeCADGui.SendMsgToActiveView("ViewSelection")
                         Gui.Selection.clearSelection()
                     else:
                         view.fitAll()
