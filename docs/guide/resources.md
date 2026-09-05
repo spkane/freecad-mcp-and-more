@@ -1,12 +1,15 @@
 # MCP Resources
 
-The default parametric profile exposes four read-only resources. They provide
-the native workflow contract and compact runtime context without duplicating
-all tool schemas.
+The default parametric profile exposes eleven read-only resources: four core
+resources plus seven progressive guide topics. They provide the native
+workflow contract and compact runtime context without duplicating all tool
+schemas.
 
 ## `freecad://parametric-parts/guide`
 
-Returns the Markdown guide used as the MCP server instructions. It covers:
+Returns the Markdown guide used as the MCP server instructions. This resource
+serves the same core text the server sends as its MCP instructions, and is
+retained as an alias so existing configurations keep working. It covers:
 
 - coordinate frames, Body Origin planes, and named datums;
 - native variable sets and expression-bound dimensions;
@@ -46,6 +49,22 @@ latency, and any connection error. Read it before modeling. Screenshots require
 Returns the active document's internal name, label, path, object names, modified
 state, and active object. Use `query_objects`, `inspect_object`,
 `get_sketch_info`, and `validate_document` for detailed evidence.
+
+## Progressive Guide Topics
+
+Seven further resources each serve one topic document from the guide's
+"Progressive Guide Topics" list. Fetch a topic when its trigger applies rather
+than loading the whole guide up front.
+
+- `freecad://guide/brief` — turning prose, an image, or a drawing into a brief.
+- `freecad://guide/visual-evidence` — the capture protocol. Read before
+  capturing evidence.
+- `freecad://guide/parameters` — variable sets, units, and expression binding.
+- `freecad://guide/features` — feature order, datums, overlap, and
+  through-cuts.
+- `freecad://guide/variants` — isolated one-edit variant transactions.
+- `freecad://guide/repair` — `VALIDATION_FAILED`, `STALE_REVISION`, and undo.
+- `freecad://guide/delivery` — manifests, READMEs, and re-import evidence.
 
 ## Resources And Tools
 

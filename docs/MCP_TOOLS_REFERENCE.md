@@ -266,9 +266,20 @@ retained path.
 ## Resources
 
 - `freecad://parametric-parts/guide`: Native modeling and validation guide.
+  Serves the same core text the server sends as its MCP instructions, and is
+  retained as an alias so existing configurations keep working.
 - `freecad://capabilities`: Exact default interface and contract.
 - `freecad://status`: Live bridge and GUI status.
 - `freecad://active-document`: Active native document summary.
+- `freecad://guide/brief`: Turning prose, an image, or a drawing into a brief.
+- `freecad://guide/visual-evidence`: The capture protocol. Read before
+  capturing evidence.
+- `freecad://guide/parameters`: Variable sets, units, and expression binding.
+- `freecad://guide/features`: Feature order, datums, overlap, and
+  through-cuts.
+- `freecad://guide/variants`: Isolated one-edit variant transactions.
+- `freecad://guide/repair`: `VALIDATION_FAILED`, `STALE_REVISION`, and undo.
+- `freecad://guide/delivery`: Manifests, READMEs, and re-import evidence.
 
 ## Retired Full Profile
 
