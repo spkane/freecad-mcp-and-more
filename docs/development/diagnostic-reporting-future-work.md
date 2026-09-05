@@ -44,6 +44,30 @@ profile whose only defect, `Wire is not closed`, was never reported.
 - `capture_feature_view` frames a focus with the `ViewSelection` view
   command; `View3DInventorPy` has no `fitSelection` method.
 
+## Why both channels exist
+
+Console capture does not supersede the structured diagnostics, and
+neither replaces the other. Verified live on 2026-09-05: reading the
+state of two broken features without recomputing produced an empty
+console capture, while `object_diagnostics` still reported
+`Roof: "Linked shape object is empty"`.
+
+- Console capture answers what happened during this call. It is the
+  richer channel at the moment of failure and carries messages available
+  nowhere else, such as "Revolve axis intersects the sketch" and "Wire
+  is not closed". It is empty for any call that does not recompute.
+- Structured diagnostics answer what is true now. They survive across
+  calls, attribute per object, and give machine-readable indices such as
+  `RedundantConstraints: [7]` that a caller can pass straight to
+  `delete_sketch_constraint`. They are the only channel available to
+  read-only tools such as `validate_document`, which is where an agent
+  asks what is wrong.
+
+The two disagree in both directions on the same objects. `Spire` failing
+a recompute printed "Wire is not closed." while its `getStatusString()`
+returned only `Error`; on the following read the console had nothing
+left to say while the structured status named the defect.
+
 ## Future work
 
 ### 1. Console capture is descriptor-level, with known limits
