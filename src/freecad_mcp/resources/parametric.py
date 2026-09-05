@@ -1,10 +1,33 @@
 """Focused MCP resources for parametric FreeCAD part workflows."""
 
 import json
+from collections.abc import Awaitable, Callable
 from typing import Any
 
-from freecad_mcp.guidance import PARAMETRIC_PARTS_GUIDANCE
+from freecad_mcp.guidance import (
+    GUIDE_TOPICS,
+    PARAMETRIC_PARTS_GUIDANCE,
+    load_guide,
+)
 from freecad_mcp.tools import PARAMETRIC_TOOL_NAMES
+
+
+def _make_guide_reader(topic: str) -> Callable[[], Awaitable[str]]:
+    """Build a zero-argument resource reader bound to one guide topic.
+
+    Args:
+        topic: A topic name from ``GUIDE_TOPICS``.
+
+    Returns:
+        An async callable that returns that topic's markdown document.
+    """
+
+    async def resource_guide_topic() -> str:
+        """Return one progressive guide topic document."""
+        return load_guide(topic)
+
+    resource_guide_topic.__name__ = f"resource_guide_{topic.replace('-', '_')}"
+    return resource_guide_topic
 
 
 def register_resources(mcp: Any, get_bridge: Any) -> None:
@@ -20,6 +43,9 @@ def register_resources(mcp: Any, get_bridge: Any) -> None:
         """Return the native incremental PartDesign modeling guide."""
         return PARAMETRIC_PARTS_GUIDANCE
 
+    for topic in GUIDE_TOPICS:
+        mcp.resource(f"freecad://guide/{topic}")(_make_guide_reader(topic))
+
     @mcp.resource("freecad://capabilities")
     async def resource_capabilities() -> str:
         """Return the exact default tool, prompt, and resource interface."""
@@ -33,12 +59,15 @@ def register_resources(mcp: Any, get_bridge: Any) -> None:
                     "design_parametric_part",
                     "review_parametric_part",
                 ],
-                "resources": [
-                    "freecad://active-document",
-                    "freecad://capabilities",
-                    "freecad://parametric-parts/guide",
-                    "freecad://status",
-                ],
+                "resources": sorted(
+                    [
+                        "freecad://active-document",
+                        "freecad://capabilities",
+                        "freecad://parametric-parts/guide",
+                        "freecad://status",
+                    ]
+                    + [f"freecad://guide/{topic}" for topic in GUIDE_TOPICS]
+                ),
                 "modeling_contract": {
                     "authoritative_artifact": "native FCStd PartDesign feature tree",
                     "construction": "task-oriented MCP sketch and feature tools",

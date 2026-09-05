@@ -159,6 +159,7 @@ async def test_parametric_prompts_are_focused_and_task_specific() -> None:
 @pytest.mark.asyncio
 async def test_parametric_resources_match_registered_interface() -> None:
     """Capability metadata should exactly describe the reduced interface."""
+    from freecad_mcp.guidance import GUIDE_TOPICS
     from freecad_mcp.resources.parametric import register_resources
 
     mcp = _resource_registry()
@@ -192,7 +193,7 @@ async def test_parametric_resources_match_registered_interface() -> None:
         "freecad://capabilities",
         "freecad://parametric-parts/guide",
         "freecad://status",
-    }
+    } | {f"freecad://guide/{topic}" for topic in GUIDE_TOPICS}
 
     capabilities = json.loads(
         await mcp._registered_resources["freecad://capabilities"]()
@@ -215,3 +216,54 @@ async def test_parametric_resources_match_registered_interface() -> None:
     active = json.loads(await mcp._registered_resources["freecad://active-document"]())
     assert active["name"] == "Fixture"
     assert active["objects"] == ["Body"]
+
+
+class TestGuideResources:
+    """The progressive guide topics must be reachable as resources."""
+
+    @pytest.mark.asyncio
+    async def test_every_topic_is_registered(self):
+        """Each topic in GUIDE_TOPICS has its own resource URI."""
+        from freecad_mcp.guidance import GUIDE_TOPICS
+        from freecad_mcp.resources.parametric import register_resources
+
+        mcp = _resource_registry()
+        register_resources(mcp, AsyncMock())
+
+        for topic in GUIDE_TOPICS:
+            assert f"freecad://guide/{topic}" in mcp._registered_resources
+
+    @pytest.mark.asyncio
+    async def test_topic_resource_returns_its_document(self):
+        """Reading a topic resource returns that topic's markdown."""
+        from freecad_mcp.guidance import load_guide
+        from freecad_mcp.resources.parametric import register_resources
+
+        mcp = _resource_registry()
+        register_resources(mcp, AsyncMock())
+
+        reader = mcp._registered_resources["freecad://guide/repair"]
+        assert await reader() == load_guide("repair")
+
+    @pytest.mark.asyncio
+    async def test_core_alias_is_retained(self):
+        """Existing configurations keep working."""
+        from freecad_mcp.resources.parametric import register_resources
+
+        mcp = _resource_registry()
+        register_resources(mcp, AsyncMock())
+
+        assert "freecad://parametric-parts/guide" in mcp._registered_resources
+
+    @pytest.mark.asyncio
+    async def test_capabilities_lists_every_registered_resource(self):
+        """The catalog cannot advertise a resource set it does not register."""
+        from freecad_mcp.resources.parametric import register_resources
+
+        mcp = _resource_registry()
+        register_resources(mcp, AsyncMock())
+
+        catalog = json.loads(
+            await mcp._registered_resources["freecad://capabilities"]()
+        )
+        assert sorted(catalog["resources"]) == sorted(mcp._registered_resources.keys())
