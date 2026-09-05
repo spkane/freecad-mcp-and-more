@@ -103,3 +103,60 @@ class TestCoreGuide:
         from freecad_mcp.guidance import PARAMETRIC_PARTS_GUIDANCE
 
         assert len(PARAMETRIC_PARTS_GUIDANCE.splitlines()) <= 130
+
+
+class TestRequiredWorkflowParsing:
+    """The workflow served to clients is read from the guide, not restated."""
+
+    def test_steps_match_the_guides_ordered_list(self):
+        """Every parsed step is text that actually appears in the guide."""
+        import re
+
+        from freecad_mcp.guidance import (
+            PARAMETRIC_PARTS_GUIDANCE,
+            REQUIRED_WORKFLOW_STEPS,
+        )
+
+        collapsed = re.sub(r"\s+", " ", PARAMETRIC_PARTS_GUIDANCE)
+        assert len(REQUIRED_WORKFLOW_STEPS) == 12
+        for step in REQUIRED_WORKFLOW_STEPS:
+            assert step in collapsed
+
+    def test_first_step_classifies_the_request(self):
+        """Ordering is part of the contract, so the first step is pinned."""
+        from freecad_mcp.guidance import REQUIRED_WORKFLOW_STEPS
+
+        assert REQUIRED_WORKFLOW_STEPS[0].startswith("Classify the request")
+
+    def test_scaling_rule_opens_the_section(self):
+        """The rule that governs how far to scale the protocol is captured."""
+        from freecad_mcp.guidance import REQUIRED_WORKFLOW_SCALING_RULE
+
+        assert REQUIRED_WORKFLOW_SCALING_RULE.startswith("Scale depth to the task.")
+        assert "floors below apply either way" in REQUIRED_WORKFLOW_SCALING_RULE
+
+    def test_wrapped_lines_join_into_one_step(self):
+        """A step wrapped across source lines is one step, not several."""
+        from freecad_mcp.guidance import parse_required_workflow
+
+        _rule, steps = parse_required_workflow(
+            "## Required Workflow\n"
+            "\n"
+            "Scale depth to the task.\n"
+            "\n"
+            "1. First step that runs\n"
+            "   onto a second line.\n"
+            "1. Second step.\n"
+            "\n"
+            "## Handoff\n"
+            "\n"
+            "1. Not a workflow step.\n"
+        )
+        assert steps == ("First step that runs onto a second line.", "Second step.")
+
+    def test_missing_section_raises_rather_than_serving_nothing(self):
+        """A renamed heading must fail loudly, not advertise an empty list."""
+        from freecad_mcp.guidance import parse_required_workflow
+
+        with pytest.raises(ValueError, match="no ordered steps found"):
+            parse_required_workflow("# Title\n\n## Handoff\n\nNothing ordered here.\n")

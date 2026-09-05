@@ -7,6 +7,8 @@ from typing import Any
 from freecad_mcp.guidance import (
     GUIDE_TOPICS,
     PARAMETRIC_PARTS_GUIDANCE,
+    REQUIRED_WORKFLOW_SCALING_RULE,
+    REQUIRED_WORKFLOW_STEPS,
     load_guide,
 )
 from freecad_mcp.tools import PARAMETRIC_TOOL_NAMES
@@ -80,19 +82,13 @@ def register_resources(mcp: Any, get_bridge: Any) -> None:
                     ),
                     "python_execution_exposed": False,
                 },
-                "workflow": [
-                    "plan named parameters and datums",
-                    "create a document, Body, and native variable set",
-                    "create complete constrained sketches with symbolic IDs",
-                    "bind related expressions in atomic batches",
-                    "pad, pocket, revolve, groove, and pattern native features",
-                    "use local mutation validation and bounded object queries",
-                    "validate the document after meaningful feature groups",
-                    "edit governing variables and verify their response",
-                    "save, close, reopen, edit, and validate",
-                    "export and re-import STEP",
-                    "inspect deterministic renders",
-                ],
+                # Read out of PARAMETRIC_PARTS_GUIDE.md rather than
+                # restated here. The previous hand-maintained copy drifted
+                # from the guide, so a client reading this catalog was told
+                # one workflow while the server's own instructions stated
+                # another.
+                "workflow_scaling_rule": REQUIRED_WORKFLOW_SCALING_RULE,
+                "workflow": list(REQUIRED_WORKFLOW_STEPS),
             },
             indent=2,
         )

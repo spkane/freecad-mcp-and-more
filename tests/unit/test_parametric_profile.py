@@ -264,6 +264,44 @@ class TestGuideResources:
         assert "freecad://parametric-parts/guide" in mcp._registered_resources
 
     @pytest.mark.asyncio
+    async def test_capabilities_workflow_is_the_core_guides_workflow(self):
+        """The catalog cannot state a workflow the instructions contradict.
+
+        The catalog once carried its own hand-maintained eleven-step list.
+        The core guide was rewritten and the copy was not, so a client
+        reading `freecad://capabilities` was told to "inspect deterministic
+        renders" while the instructions told it to capture along a support
+        normal. Assert the served list against the guide itself.
+        """
+        import re
+
+        from freecad_mcp.guidance import (
+            PARAMETRIC_PARTS_GUIDANCE,
+            REQUIRED_WORKFLOW_SCALING_RULE,
+            REQUIRED_WORKFLOW_STEPS,
+        )
+        from freecad_mcp.resources.parametric import register_resources
+
+        mcp = _resource_registry()
+        register_resources(mcp, AsyncMock())
+
+        catalog = json.loads(
+            await mcp._registered_resources["freecad://capabilities"]()
+        )
+        assert catalog["workflow"] == list(REQUIRED_WORKFLOW_STEPS)
+        assert catalog["workflow_scaling_rule"] == REQUIRED_WORKFLOW_SCALING_RULE
+
+        # Guard against a future copy being pasted back in: every served
+        # step has to be text the core guide actually contains.
+        collapsed = re.sub(r"\s+", " ", PARAMETRIC_PARTS_GUIDANCE)
+        for step in catalog["workflow"]:
+            assert step in collapsed, f"workflow step not in the core guide: {step!r}"
+
+        # The pre-branch list named steps the rewritten core dropped.
+        assert "inspect deterministic renders" not in catalog["workflow"]
+        assert "plan named parameters and datums" not in catalog["workflow"]
+
+    @pytest.mark.asyncio
     async def test_capabilities_lists_every_registered_resource(self):
         """The catalog cannot advertise a resource set it does not register."""
         from freecad_mcp.resources.parametric import register_resources
