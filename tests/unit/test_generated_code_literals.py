@@ -9,8 +9,10 @@ and as a `SyntaxError` under `-W error`, which would take the bridge down.
 
 The fix is always the same: bind the interpolation to a name on its own line
 and compare the name. This module scans the shipped source for the mistake so
-a new template cannot reintroduce it silently. It found 56 sites when first
-written.
+a new template cannot reintroduce it silently. It found 57 sites when first
+written: 55 `{doc_name!r}` and one `{label!r}`, which CPython warns about,
+and one `{object_names!r}` that renders a list display and does not warn but
+is the same mistake.
 """
 
 import ast
