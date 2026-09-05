@@ -6,6 +6,11 @@ FreeCAD, which is exactly where the empty-capture bug lived — hence these test
 assert on the generated source directly.
 """
 
+import base64
+import math
+from contextlib import suppress
+from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -245,3 +250,470 @@ class TestFeatureViewCodegen:
             "or a failure after it leaves the operator's active document "
             "switched"
         )
+
+
+# ---------------------------------------------------------------------------
+# Execution harness for the generated feature-view code
+#
+# The sign gate that decides whether the camera looks along the support normal
+# or against it lives inside the generated source, not in the generator. No
+# assertion over the generated string can reach it: invert that branch and
+# every string-matching test stays green while every window is photographed
+# from behind. So the stubs below stand in for FreeCAD and FreeCADGui,
+# faithfully enough to run the generated code to completion, and record what
+# it was told to do.
+# ---------------------------------------------------------------------------
+
+
+class StubVector:
+    """Stand-in for `FreeCAD.Vector`."""
+
+    def __init__(self, x=0.0, y=0.0, z=0.0):
+        self.x = float(x)
+        self.y = float(y)
+        self.z = float(z)
+
+    def as_tuple(self):
+        """Return the components as a plain tuple for comparison."""
+        return (self.x, self.y, self.z)
+
+    def __repr__(self):
+        return f"StubVector({self.x}, {self.y}, {self.z})"
+
+
+class StubRotation:
+    """Stand-in for a FreeCAD axis/angle rotation.
+
+    `multVec` is real rotation math (Rodrigues' formula), not the identity,
+    so a generated normal that skips `Placement.Rotation.multVec` produces a
+    visibly different direction.
+    """
+
+    def __init__(self, axis=(0.0, 0.0, 1.0), angle=0.0):
+        length = math.sqrt(sum(component**2 for component in axis))
+        self.Axis = StubVector(*(component / length for component in axis))
+        self.Angle = float(angle)
+
+    def multVec(self, vector):
+        """Rotate `vector` about this rotation's axis by its angle."""
+        k = (self.Axis.x, self.Axis.y, self.Axis.z)
+        v = (vector.x, vector.y, vector.z)
+        cos_a = math.cos(self.Angle)
+        sin_a = math.sin(self.Angle)
+        cross = (
+            k[1] * v[2] - k[2] * v[1],
+            k[2] * v[0] - k[0] * v[2],
+            k[0] * v[1] - k[1] * v[0],
+        )
+        dot = sum(k[i] * v[i] for i in range(3))
+        return StubVector(
+            *(
+                v[i] * cos_a + cross[i] * sin_a + k[i] * dot * (1.0 - cos_a)
+                for i in range(3)
+            )
+        )
+
+
+class StubPlacement:
+    """Stand-in for `obj.Placement`."""
+
+    def __init__(self, position=(0.0, 0.0, 0.0), axis=(0.0, 0.0, 1.0), angle=0.0):
+        self.Base = StubVector(*position)
+        self.Rotation = StubRotation(axis=axis, angle=angle)
+
+
+class StubViewObject:
+    """Stand-in for `obj.ViewObject`, which is where visibility lives."""
+
+    def __init__(self, visible=True):
+        self.Visibility = visible
+
+
+class StubObject:
+    """Stand-in for a document object."""
+
+    def __init__(self, name, type_id, placement=None):
+        self.Name = name
+        self.TypeId = type_id
+        self.ViewObject = StubViewObject()
+        if placement is not None:
+            self.Placement = placement
+
+
+class StubDocument:
+    """Stand-in for a FreeCAD document."""
+
+    def __init__(self, name, objects):
+        self.Name = name
+        self.Objects = list(objects)
+        self._by_name = {obj.Name: obj for obj in objects}
+
+    def getObject(self, name):
+        """Return the named object, or None, exactly as FreeCAD does."""
+        return self._by_name.get(name)
+
+
+class StubView:
+    """Stand-in for `ActiveView`, recording every camera instruction."""
+
+    def __init__(self, fail_on_save=False):
+        self.camera = "camera-before-capture"
+        self.view_directions = []
+        self.restored_cameras = []
+        self.fit_calls = []
+        self.saved_image_paths = []
+        self.fail_on_save = fail_on_save
+
+    def getCamera(self):
+        """Return the current camera state."""
+        return self.camera
+
+    def setCamera(self, camera):
+        """Record a camera restore."""
+        self.restored_cameras.append(camera)
+        self.camera = camera
+
+    def setViewDirection(self, direction):
+        """Record the direction the camera was pointed along."""
+        self.view_directions.append(direction)
+
+    def fitAll(self):
+        """Record a whole-document framing."""
+        self.fit_calls.append("fitAll")
+
+    def fitSelection(self):
+        """Record a focused framing."""
+        self.fit_calls.append("fitSelection")
+
+    def saveImage(self, path, width, height, background):
+        """Write a placeholder PNG, or fail partway through the capture."""
+        self.saved_image_paths.append(path)
+        if self.fail_on_save:
+            raise RuntimeError("renderer refused to save the image")
+        Path(path).write_bytes(b"\x89PNG\r\n\x1a\n stub image")
+
+
+class StubSelection:
+    """Stand-in for `Gui.Selection`."""
+
+    def __init__(self):
+        self.added = []
+        self.clear_count = 0
+
+    def clearSelection(self):
+        """Record a selection clear."""
+        self.clear_count += 1
+
+    def addSelection(self, doc_name, obj_name):
+        """Record a selection addition, ignoring unknown names as FreeCAD does."""
+        self.added.append((doc_name, obj_name))
+
+
+class StubGuiDocument:
+    """Stand-in for `FreeCADGui.ActiveDocument`."""
+
+    def __init__(self, document, view):
+        self.Document = document
+        self.ActiveView = view
+
+
+class StubFreeCADGui:
+    """Stand-in for the `FreeCADGui` / `Gui` module."""
+
+    def __init__(self, gui_document):
+        self.ActiveDocument = gui_document
+        self.Selection = StubSelection()
+        self.activated_documents = []
+        self.update_count = 0
+
+    def setActiveDocument(self, name):
+        """Record which document was made active."""
+        self.activated_documents.append(name)
+
+    def updateGui(self):
+        """Record a GUI flush."""
+        self.update_count += 1
+
+
+class StubFreeCAD:
+    """Stand-in for the `FreeCAD` / `App` module."""
+
+    Vector = StubVector
+
+    def __init__(self, documents, active_document, gui_up=True):
+        self.GuiUp = gui_up
+        self._documents = {doc.Name: doc for doc in documents}
+        self.ActiveDocument = active_document
+
+    def getDocument(self, name):
+        """Return the named document, or None."""
+        return self._documents.get(name)
+
+
+def _build_stub_environment(
+    placement=None,
+    fail_on_save=False,
+    gui_shows_other_document=False,
+):
+    """Build a FreeCAD stub pair around one document named ``Target``.
+
+    Args:
+        placement: The placement given to ``WindowSketch``. Defaults to a
+            90-degree rotation about X, so the support normal is ``(0, -1, 0)``
+            rather than the identity's ``(0, 0, 1)``. A generated normal that
+            ignores the rotation is therefore visible in the assertions.
+        fail_on_save: Whether ``saveImage`` raises, standing in for a capture
+            that fails partway through.
+        gui_shows_other_document: Whether the GUI starts on a different
+            document, so the activate-and-restore path runs.
+
+    Returns:
+        A tuple of the FreeCAD stub, the FreeCADGui stub, the view, and the
+        document.
+    """
+    if placement is None:
+        placement = StubPlacement(
+            position=(1.0, 2.0, 3.0), axis=(1.0, 0.0, 0.0), angle=math.pi / 2
+        )
+    sketch = StubObject("WindowSketch", "Sketcher::SketchObject", placement)
+    origin = StubObject("Origin", "App::Origin")
+    pad = StubObject("Pad", "PartDesign::Pad")
+    document = StubDocument("Target", [sketch, origin, pad])
+
+    view = StubView(fail_on_save=fail_on_save)
+    if gui_shows_other_document:
+        other = StubDocument("Other", [])
+        gui_document = StubGuiDocument(other, view)
+        documents = [document, other]
+    else:
+        gui_document = StubGuiDocument(document, view)
+        documents = [document]
+
+    freecad = StubFreeCAD(documents, active_document=document)
+    gui = StubFreeCADGui(gui_document)
+    return freecad, gui, view, document
+
+
+def _run_generated(code, freecad, gui) -> "dict[str, Any]":
+    """Run generated capture code against the stubs and return ``_result_``.
+
+    Args:
+        code: Source from ``build_feature_view_code``.
+        freecad: The ``StubFreeCAD`` bound to ``FreeCAD`` and ``App``.
+        gui: The ``StubFreeCADGui`` bound to ``FreeCADGui`` and ``Gui``.
+
+    Returns:
+        The ``_result_`` the generated code produced.
+    """
+    namespace: dict[str, Any] = {
+        "FreeCAD": freecad,
+        "App": freecad,
+        "FreeCADGui": gui,
+        "Gui": gui,
+    }
+    exec(compile(code, "<generated>", "exec"), namespace)  # noqa: S102
+    result: dict[str, Any] = namespace["_result_"]
+    return result
+
+
+def _feature_view_code(**overrides):
+    """Generate feature-view code with the test defaults applied."""
+    from freecad_mcp.bridge.view_code import build_feature_view_code
+
+    arguments: dict[str, Any] = {
+        "normal_source": "WindowSketch",
+        "side": "front",
+        "focus": None,
+        "padding": 0.1,
+        "hide_construction": True,
+        "width": 800,
+        "height": 600,
+        "doc_name": "Target",
+    }
+    arguments.update(overrides)
+    return build_feature_view_code(**arguments)
+
+
+@pytest.fixture
+def clean_capture_files():
+    """Remove any placeholder PNG the generated code left behind.
+
+    The generated code unlinks its own temporary file on the success path,
+    but not when the capture raises. These files land in the system
+    temporary directory, never the repository.
+    """
+    views: list[StubView] = []
+    yield views
+    for view in views:
+        for path in view.saved_image_paths:
+            with suppress(OSError):
+                Path(path).unlink()
+
+
+class TestFeatureViewExecution:
+    """Run the generated code; assert on behavior, not on its text."""
+
+    def test_front_and_back_look_along_opposite_signs_of_the_normal(
+        self, clean_capture_files
+    ):
+        """The side gate is the whole point of the tool.
+
+        `front` must look *against* the support normal and `back` *along*
+        it. Asserting only that the two generated strings differ leaves an
+        inverted branch undetected, so the directions are compared as
+        values the code actually handed to `setViewDirection`.
+        """
+        directions = {}
+        for side in ("front", "back"):
+            freecad, gui, view, _doc = _build_stub_environment()
+            clean_capture_files.append(view)
+            result = _run_generated(_feature_view_code(side=side), freecad, gui)
+            assert result["success"] is True
+            assert len(view.view_directions) == 1
+            directions[side] = view.view_directions[0].as_tuple()
+
+        # A 90-degree rotation about X takes (0, 0, 1) to (0, -1, 0). An
+        # identity normal, or a dropped Rotation.multVec, gives (0, 0, +/-1)
+        # and fails here.
+        assert directions["back"] == pytest.approx((0.0, -1.0, 0.0), abs=1e-9)
+        assert directions["front"] == pytest.approx((0.0, 1.0, 0.0), abs=1e-9)
+
+        # Exact negatives of one another, whatever the placement.
+        assert directions["front"] == pytest.approx(
+            tuple(-component for component in directions["back"]), abs=1e-12
+        )
+
+    def test_camera_direction_tracks_an_arbitrary_placement(self, clean_capture_files):
+        """The sign relationship holds for a rotation about a skewed axis."""
+        placement = StubPlacement(
+            position=(0.0, 0.0, 0.0), axis=(1.0, 1.0, 0.0), angle=math.pi / 3
+        )
+        freecad, gui, view, _doc = _build_stub_environment(placement=placement)
+        clean_capture_files.append(view)
+
+        result = _run_generated(_feature_view_code(side="front"), freecad, gui)
+
+        expected_normal = placement.Rotation.multVec(StubVector(0.0, 0.0, 1.0))
+        assert result["placement"]["normal"] == pytest.approx(
+            list(expected_normal.as_tuple()), abs=1e-9
+        )
+        assert view.view_directions[0].as_tuple() == pytest.approx(
+            tuple(-component for component in expected_normal.as_tuple()), abs=1e-9
+        )
+        assert result["camera_direction"] == pytest.approx(
+            list(view.view_directions[0].as_tuple()), abs=1e-12
+        )
+
+    def test_unresolvable_focus_fails_and_captures_nothing(self):
+        """`Gui.Selection.addSelection` ignores unknown names silently.
+
+        Without the resolution check a typo produced a successful capture of
+        nothing at all, so the failure must name the missing object and no
+        image may be taken.
+        """
+        freecad, gui, view, _doc = _build_stub_environment()
+
+        result = _run_generated(
+            _feature_view_code(focus=["Pad", "NoSuchSketch"]), freecad, gui
+        )
+
+        assert result["success"] is False
+        assert "NoSuchSketch" in result["error"]
+        assert view.saved_image_paths == []
+        assert view.view_directions == []
+        assert gui.Selection.added == []
+
+    def test_resolvable_focus_fits_the_named_selection(self, clean_capture_files):
+        """A focus that does resolve still reaches `fitSelection`."""
+        freecad, gui, view, _doc = _build_stub_environment()
+        clean_capture_files.append(view)
+
+        result = _run_generated(_feature_view_code(focus=["Pad"]), freecad, gui)
+
+        assert result["success"] is True
+        assert gui.Selection.added == [("Target", "Pad")]
+        assert view.fit_calls == ["fitSelection"]
+        assert result["focus"] == ["Pad"]
+
+    def test_success_payload_carries_every_field_from_payload_reads(
+        self, clean_capture_files
+    ):
+        """The metadata contract has to survive the whole round trip.
+
+        `FeatureViewResult.from_payload` is the single place the payload is
+        mapped for all three bridges. Building one from a payload the
+        generated code actually produced is what proves the contract, rather
+        than from a payload written by hand in the test.
+        """
+        from freecad_mcp.bridge.base import FeatureViewResult
+
+        freecad, gui, view, _doc = _build_stub_environment()
+        clean_capture_files.append(view)
+
+        payload = _run_generated(
+            _feature_view_code(side="back", focus=["Pad"], padding=0.25),
+            freecad,
+            gui,
+        )
+        assert payload["success"] is True
+
+        result = FeatureViewResult.from_payload(payload)
+
+        assert result.success is True
+        assert result.data == base64.b64encode(b"\x89PNG\r\n\x1a\n stub image").decode(
+            "utf-8"
+        )
+        assert result.format == "png"
+        assert result.width == 800
+        assert result.height == 600
+        assert result.normal_source == "WindowSketch"
+        assert result.side == "back"
+        assert result.camera_direction == pytest.approx((0.0, -1.0, 0.0), abs=1e-9)
+        assert result.focus == ["Pad"]
+        assert result.padding == 0.25
+        assert "WindowSketch" in result.hidden_objects
+
+        placement = result.placement
+        assert placement is not None, "the resolved placement was dropped"
+        assert placement["position"] == pytest.approx([1.0, 2.0, 3.0], abs=1e-9)
+        assert placement["axis"] == pytest.approx([1.0, 0.0, 0.0], abs=1e-9)
+        assert placement["angle_deg"] == pytest.approx(90.0, abs=1e-9)
+        assert placement["normal"] == pytest.approx([0.0, -1.0, 0.0], abs=1e-9)
+
+    def test_state_is_restored_on_the_success_path(self, clean_capture_files):
+        """A read-only capture must leave the operator's FreeCAD untouched."""
+        freecad, gui, view, document = _build_stub_environment(
+            gui_shows_other_document=True
+        )
+        clean_capture_files.append(view)
+
+        result = _run_generated(_feature_view_code(), freecad, gui)
+
+        assert result["success"] is True
+        assert result["hidden_objects"] == ["WindowSketch", "Origin"]
+        for obj in document.Objects:
+            assert obj.ViewObject.Visibility is True
+        assert view.restored_cameras == ["camera-before-capture"]
+        assert gui.activated_documents == ["Target", "Other"]
+
+    def test_state_is_restored_when_the_capture_raises(self, clean_capture_files):
+        """The restore is in a `finally:`, so a failure mid-capture undoes it.
+
+        Without this the operator is left with hidden datum planes, a moved
+        camera, and the wrong document tab -- and the tool reports nothing,
+        because it raised.
+        """
+        freecad, gui, view, document = _build_stub_environment(
+            fail_on_save=True, gui_shows_other_document=True
+        )
+        clean_capture_files.append(view)
+
+        with pytest.raises(RuntimeError, match="renderer refused"):
+            _run_generated(_feature_view_code(), freecad, gui)
+
+        # The capture got far enough to hide and to move the camera.
+        assert view.view_directions, "the camera was never pointed"
+        for obj in document.Objects:
+            assert obj.ViewObject.Visibility is True
+        assert view.restored_cameras == ["camera-before-capture"]
+        assert gui.activated_documents == ["Target", "Other"]
