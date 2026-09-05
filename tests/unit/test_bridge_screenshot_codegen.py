@@ -130,3 +130,81 @@ async def test_screenshot_codegen_captures_the_requested_document(bridge):
     assert code.count("setActiveDocument") >= 2, (
         "must restore the previously active document after capture"
     )
+
+
+class TestFeatureViewCodegen:
+    """The generated capture code is where correctness actually lives."""
+
+    def test_code_checks_gui_before_touching_the_view(self):
+        from freecad_mcp.bridge.view_code import build_feature_view_code
+
+        code = build_feature_view_code(
+            normal_source="WindowSketch",
+            side="front",
+            focus=None,
+            padding=0.1,
+            hide_construction=True,
+            width=800,
+            height=600,
+            doc_name=None,
+        )
+        assert code.index("FreeCAD.GuiUp") < code.index("setViewDirection")
+
+    def test_code_restores_camera_and_visibility(self):
+        from freecad_mcp.bridge.view_code import build_feature_view_code
+
+        code = build_feature_view_code(
+            normal_source="WindowSketch",
+            side="front",
+            focus=["Pocket"],
+            padding=0.1,
+            hide_construction=True,
+            width=800,
+            height=600,
+            doc_name=None,
+        )
+        assert "setCamera(_saved_camera)" in code
+        assert "finally:" in code
+        assert "_restore_visibility" in code
+
+    def test_back_side_negates_the_normal(self):
+        from freecad_mcp.bridge.view_code import build_feature_view_code
+
+        front = build_feature_view_code(
+            normal_source="S",
+            side="front",
+            focus=None,
+            padding=0.1,
+            hide_construction=False,
+            width=800,
+            height=600,
+            doc_name=None,
+        )
+        back = build_feature_view_code(
+            normal_source="S",
+            side="back",
+            focus=None,
+            padding=0.1,
+            hide_construction=False,
+            width=800,
+            height=600,
+            doc_name=None,
+        )
+        assert front != back
+        assert "_side = 'back'" in back
+
+    def test_unresolvable_source_is_a_structured_error(self):
+        from freecad_mcp.bridge.view_code import build_feature_view_code
+
+        code = build_feature_view_code(
+            normal_source="Missing",
+            side="front",
+            focus=None,
+            padding=0.1,
+            hide_construction=False,
+            width=800,
+            height=600,
+            doc_name=None,
+        )
+        assert '"success": False' in code
+        assert "has no resolvable support placement" in code

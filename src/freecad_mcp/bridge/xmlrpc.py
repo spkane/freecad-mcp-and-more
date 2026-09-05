@@ -35,6 +35,7 @@ from freecad_mcp.bridge.base import (
     ViewAngle,
     WorkbenchInfo,
 )
+from freecad_mcp.bridge.view_code import build_feature_view_code
 
 DEFAULT_XMLRPC_HOST = "localhost"
 DEFAULT_XMLRPC_PORT = 9875
@@ -823,6 +824,54 @@ _result_ = {{
             width=width,
             height=height,
             view_angle=view_angle,
+        )
+
+    async def capture_feature_view(
+        self,
+        normal_source: str,
+        side: str,
+        focus: list[str] | None,
+        padding: float,
+        hide_construction: bool,
+        width: int,
+        height: int,
+        doc_name: str | None,
+    ) -> ScreenshotResult:
+        """Capture a screenshot aimed along a named support's normal."""
+        code = build_feature_view_code(
+            normal_source=normal_source,
+            side=side,
+            focus=focus,
+            padding=padding,
+            hide_construction=hide_construction,
+            width=width,
+            height=height,
+            doc_name=doc_name,
+        )
+        result = await self.execute_python(code, transaction=None)
+
+        if result.success and result.result and result.result.get("success"):
+            return ScreenshotResult(
+                success=True,
+                data=result.result["data"],
+                format=result.result["format"],
+                width=result.result["width"],
+                height=result.result["height"],
+            )
+
+        error = (
+            (result.result or {}).get("error")
+            if result.success and result.result
+            else None
+        )
+        return ScreenshotResult(
+            success=False,
+            error=error
+            or result.error_traceback
+            or result.stderr
+            or "Failed to capture feature view",
+            width=width,
+            height=height,
         )
 
     async def set_view(

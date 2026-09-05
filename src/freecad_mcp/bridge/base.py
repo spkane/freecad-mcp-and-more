@@ -513,6 +513,44 @@ class FreecadBridge(ABC):
             doc_name: Document name (uses active if None).
         """
 
+    @abstractmethod
+    async def capture_feature_view(
+        self,
+        normal_source: str,
+        side: str,
+        focus: list[str] | None,
+        padding: float,
+        hide_construction: bool,
+        width: int,
+        height: int,
+        doc_name: str | None,
+    ) -> ScreenshotResult:
+        """Capture a screenshot aimed along a named support's normal.
+
+        Unlike `get_screenshot`, which can only aim the camera at one of
+        eight fixed global angles, this resolves `normal_source`'s
+        `Placement.Rotation` applied to `Vector(0, 0, 1)` and points the
+        camera along (or against) that normal, so a feature can be viewed
+        along its own normal rather than a global axis.
+
+        Args:
+            normal_source: Name of the object whose placement supplies the
+                camera's normal direction.
+            side: `"front"` to view from the normal's positive side, or
+                `"back"` to view from the opposite side.
+            focus: Object names to fit the view to, or `None` to fit the
+                whole document.
+            padding: Fractional margin to leave around the framed geometry.
+            hide_construction: Whether to hide datum planes, origins, and
+                construction sketches for the duration of the capture.
+            width: Image width in pixels.
+            height: Image height in pixels.
+            doc_name: Document name (uses active if None).
+
+        Returns:
+            ScreenshotResult with image data or a structured error.
+        """
+
     # =========================================================================
     # Workbenches
     # =========================================================================
