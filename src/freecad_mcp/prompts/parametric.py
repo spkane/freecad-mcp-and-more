@@ -28,15 +28,8 @@ Design description: {description}
 Units: {units}
 Output directory: {output_directory}
 
-Start with a short coordinate, parameter, datum, and feature plan. Build the
-native feature tree with `define_variables`, `create_partdesign_body`,
-`create_constrained_sketch`, `bind_expressions`, and additive or subtractive
-feature tools such as `pad_sketch` and `pocket_sketch`. Use returned local
-validation and `query_objects` instead of repeatedly listing the whole document.
-Treat rejected additive material effects, disconnected patterns, and listed
-expression diagnostics as inputs to repair, not results to build upon.
-Use granular sketch and expression tools only for repair. Then complete the
-persistence, parameter-edit, export, render, and handoff gates above.
+Follow the workflow above, and read the progressive guide topics the task
+triggers.
 """
 
     @mcp.prompt()

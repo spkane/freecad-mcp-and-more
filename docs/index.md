@@ -8,7 +8,7 @@ This project provides an [MCP (Model Context Protocol)](https://modelcontextprot
 
 ## Features
 
-- **54 focused MCP tools** - Native PartDesign, Sketcher, variable, expression,
+- **55 focused MCP tools** - Native PartDesign, Sketcher, variable, expression,
   validation, persistence, render, and export workflow
 - **Canonical CAD guidance** - Built into server instructions, prompts, and
   resources for consistent agent behavior
@@ -69,7 +69,7 @@ The Robust MCP Server works with FreeCAD in both GUI and headless mode:
 | -------------------------------------------------- | ------------------------------------------------- |
 | [Getting Started](getting-started/installation.md) | Installation, configuration, and quick start      |
 | [User Guide](guide/connection-modes.md)            | Connection modes, workbench, macros, and tools    |
-| [Tools Reference](MCP_TOOLS_REFERENCE.md)          | Default 54-tool parametric interface              |
+| [Tools Reference](MCP_TOOLS_REFERENCE.md)          | Default 55-tool parametric interface              |
 | [API Reference](api/server.md)                     | Python API documentation                          |
 | [Development](development/contributing.md)         | Contributing, architecture, and development setup |
 | [Comparison](COMPARISON.md)                        | Compare with other FreeCAD MCP implementations    |

@@ -1,6 +1,6 @@
 # Tools Reference
 
-The default `parametric` profile exposes 54 tools for building editable native
+The default `parametric` profile exposes 55 tools for building editable native
 FreeCAD parts through task-oriented MCP commands. It retains the complete core
 PartDesign workflow without exposing arbitrary Python execution or the full
 historical catalog.
@@ -98,12 +98,12 @@ Tip; disconnected multi-solid patterns remain invalid and roll back.
 
 ### Validation, Export, And Review
 
-| Purpose       | Tools                                                              |
-| ------------- | ------------------------------------------------------------------ |
-| Validation    | `validate_object`, `validate_document`                             |
-| Interchange   | `export_step`, `export_stl`, `import_step`                         |
-| Visual review | `get_screenshot`, `set_view_angle`, `fit_all`                      |
-| Visibility    | `set_object_visibility`                                            |
+| Purpose       | Tools                                                                 |
+| ------------- | --------------------------------------------------------------------- |
+| Validation    | `validate_object`, `validate_document`                                |
+| Interchange   | `export_step`, `export_stl`, `import_step`                            |
+| Visual review | `get_screenshot`, `set_view_angle`, `fit_all`, `capture_feature_view` |
+| Visibility    | `set_object_visibility`                                               |
 
 Screenshots require GUI mode. Inspect the actual image, but do not use render
 pixels as proof of dimensions, solid connectivity, or editability.

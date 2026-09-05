@@ -72,7 +72,7 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 
 ## Features
 
-- **54 focused MCP tools**: Native Body, sketch, constraint, feature, variable,
+- **55 focused MCP tools**: Native Body, sketch, constraint, feature, variable,
   validation, persistence, rendering, and export operations
 - **Built-in CAD guidance**: Prompts and resources encode planning, PartDesign,
   validation, parameter-variant, reopen, export, and visual-review practices
@@ -343,7 +343,7 @@ FREECAD_MODE=embedded freecad-mcp
 
 ### Parametric Tool Profile
 
-The default profile exposes 54 tools. It keeps the native PartDesign path while
+The default profile exposes 55 tools. It keeps the native PartDesign path while
 removing unrelated primitives, arbitrary Python execution, macros, Draft tools,
 and less common operations from the model's tool context.
 

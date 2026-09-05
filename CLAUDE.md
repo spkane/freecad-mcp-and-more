@@ -1737,7 +1737,7 @@ Each component has its own `RELEASE_NOTES.md` file that is updated before releas
 
 ## FreeCAD Robust MCP Tools Reference
 
-The server exposes 54 tools for task-oriented native PartDesign construction.
+The server exposes 55 tools for task-oriented native PartDesign construction.
 Agents create Bodies, native variable sets, complete constrained sketches,
 expression batches, and validated additive or subtractive features through typed
 MCP commands. The opt-in full profile has been retired; arbitrary Python
@@ -1793,7 +1793,8 @@ claim every tool is undoable.
 - **Sketch**: `create_constrained_sketch`, plus granular repair helpers
 - **Features**: `pad_sketch`, `pocket_sketch`, `revolution_sketch`,
   `polar_pattern`
-- **Validation**: `query_objects`, `get_sketch_info`, `validate_document`
+- **Validation**: `query_objects`, `get_sketch_info`, `validate_document`,
+  `capture_feature_view`
 
 The default profile also includes connection and console tools, FCStd document
 lifecycle operations, STEP/STL export, and GUI review tools. Arbitrary Python,

@@ -1,6 +1,6 @@
 # FreeCAD Parametric MCP Tools Reference
 
-The default `parametric` profile exposes 54 typed tools. The exact live catalog
+The default `parametric` profile exposes 55 typed tools. The exact live catalog
 is available from `freecad://capabilities`.
 
 ## Primary Construction Tools
@@ -222,6 +222,41 @@ or Tip explicitly rather than exporting hidden intermediate features.
 
 `get_screenshot`, `set_view_angle`, `fit_all`, and `set_object_visibility`
 support visual review in GUI mode.
+
+### `capture_feature_view`
+
+```python
+capture_feature_view(
+    normal_source: str,
+    side: str = "front",
+    focus: list[str] | None = None,
+    padding: float = 0.1,
+    hide_construction: bool = True,
+    width: int = 800,
+    height: int = 600,
+    doc_name: str | None = None,
+) -> CallToolResult
+```
+
+Captures the model looking along a named support's own normal. A feature seen
+edge-on is not evidence about its shape. Use this for every semantic opening or
+profile: pass the sketch, datum, or feature that supports it as `normal_source`.
+Requires GUI mode; returns an error in headless mode.
+
+- `normal_source`: Name of the sketch, datum, or feature whose support
+  placement defines the view normal.
+- `side`: `"front"` looks against the normal; `"back"` looks along it.
+- `focus`: Object names to frame. Frames the whole model if `None`.
+- `padding`: Fractional padding around the framed objects.
+- `hide_construction`: Hide datums, origins, and construction helpers for the
+  capture, then restore them.
+- `width`: Image width in pixels.
+- `height`: Image height in pixels.
+- `doc_name`: Document to capture. Uses the active document if `None`.
+
+Returns a PNG image content block plus a JSON metadata block carrying the
+camera direction, resolved source, focus names, hidden objects, and the
+retained path.
 
 ## Prompts
 

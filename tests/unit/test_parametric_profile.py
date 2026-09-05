@@ -281,3 +281,20 @@ def test_capture_feature_view_is_in_the_parametric_profile():
     """The visual gate's tool must be in the default surface."""
     assert "capture_feature_view" in PARAMETRIC_TOOL_NAMES
     assert len(PARAMETRIC_TOOL_NAMES) == 55
+
+
+def test_design_prompt_carries_the_core_guidance():
+    """The prompt and the instructions must not drift apart."""
+    from freecad_mcp.guidance import PARAMETRIC_PARTS_GUIDANCE
+
+    mcp = _prompt_registry()
+    from freecad_mcp.prompts.parametric import register_prompts
+
+    register_prompts(mcp, AsyncMock())
+    prompt = mcp._registered_prompts["design_parametric_part"]
+
+    import asyncio
+
+    text = asyncio.run(prompt(description="a bracket"))
+    assert PARAMETRIC_PARTS_GUIDANCE in text
+    assert "a bracket" in text

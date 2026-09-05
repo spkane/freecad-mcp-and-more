@@ -26,7 +26,7 @@ Install via `pip install freecad-robust-mcp` or `uv tool install freecad-robust-
 
 **Capabilities:**
 
-- 54 focused tools for native PartDesign and Sketcher workflows
+- 55 focused tools for native PartDesign and Sketcher workflows
 - Typed sketch, constraint, feature, expression, and validation commands
 - FCStd persistence plus STEP and STL export
 - Screenshot capture for visual review (GUI mode)

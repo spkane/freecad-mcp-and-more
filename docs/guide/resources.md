@@ -22,7 +22,7 @@ Returns the exact default interface as JSON:
 ```json
 {
   "profile": "parametric",
-  "tool_count": 54,
+  "tool_count": 55,
   "tools": ["add_sketch_arc", "add_sketch_circle", "..."],
   "prompts": ["design_parametric_part", "review_parametric_part"],
   "modeling_contract": {
