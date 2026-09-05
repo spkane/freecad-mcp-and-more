@@ -1,6 +1,5 @@
 """Tests for generated workflow helper code."""
 
-import sys
 from types import SimpleNamespace
 
 from freecad_mcp.tools.utils import WORKFLOW_HELPERS
@@ -84,68 +83,3 @@ class TestObjectDiagnostics:
         obj = SimpleNamespace(TypeId="Sketcher::SketchObject", getStatusString=_raise)
 
         assert self._diagnostics()(obj) == {}
-
-
-class TestReportViewLines:
-    """Tests for recovering FreeCAD's Report view text."""
-
-    def _namespace(self, gui_up: bool) -> dict[str, object]:
-        """Load the helpers with a FreeCAD stub in a known GUI state."""
-        return _workflow_namespace(SimpleNamespace(GuiUp=gui_up))
-
-    def test_returns_nothing_without_a_gui(self) -> None:
-        """Headless FreeCAD has no Report view, and that is not an error."""
-        lines = self._namespace(gui_up=False)["report_view_lines"]
-
-        assert lines(("Roof",)) == []  # type: ignore[operator]
-
-    def test_returns_nothing_when_no_names_are_given(self) -> None:
-        """Without a name to match there is nothing to attribute a line to."""
-        lines = self._namespace(gui_up=True)["report_view_lines"]
-
-        assert lines(("", None)) == []  # type: ignore[operator]
-
-    def test_reads_the_named_objects_messages(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
-        """The line FreeCAD printed for this object must reach the caller.
-
-        `Spire`'s `getStatusString()` returned only "Error" while the Report
-        view carried "Wire is not closed." -- the one line that says what to
-        repair.
-        """
-        report = SimpleNamespace(
-            objectName=lambda: "Report view",
-            toPlainText=lambda: (
-                "19:55:01  Spire: Wire is not closed.\n"
-                "19:55:06  Roof001: Linked shape object is empty\n"
-            ),
-        )
-        window = SimpleNamespace(findChildren=lambda _cls: [report])
-        monkeypatch.setitem(
-            sys.modules,
-            "FreeCADGui",
-            SimpleNamespace(getMainWindow=lambda: window),
-        )
-        monkeypatch.setitem(
-            sys.modules,
-            "PySide6",
-            SimpleNamespace(QtWidgets=SimpleNamespace(QTextEdit=object)),
-        )
-        monkeypatch.setitem(
-            sys.modules, "PySide6.QtWidgets", SimpleNamespace(QTextEdit=object)
-        )
-        lines = self._namespace(gui_up=True)["report_view_lines"]
-
-        assert lines(("Spire", "Spire")) == ["Wire is not closed."]  # type: ignore[operator]
-
-    def test_a_broken_report_view_never_fails_the_call(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
-        """Diagnostics are a courtesy; they must not become a failure mode."""
-
-        def _explode() -> None:
-            raise RuntimeError("no main window")
-
-        monkeypatch.setitem(
-            sys.modules, "FreeCADGui", SimpleNamespace(getMainWindow=_explode)
-        )
-        lines = self._namespace(gui_up=True)["report_view_lines"]
-
-        assert lines(("Spire",)) == []  # type: ignore[operator]

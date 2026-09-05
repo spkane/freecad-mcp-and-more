@@ -26,6 +26,7 @@ import json
 import os
 import queue
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -223,6 +224,65 @@ class ExecutionRequest:
                 return False
             self._cancelled = True
             return True
+
+
+class _ConsoleCapture:
+    """Capture FreeCAD's own console output for one execution.
+
+    FreeCAD prints its most useful diagnoses -- "Wire is not closed",
+    "Revolve axis intersects the sketch", "Remove the following redundant
+    constraint: 7" -- from C++, so `contextlib.redirect_stderr` never sees
+    them. `FreeCAD.Console` exposes no `AddObserver`, so no Python observer
+    can be registered either. Redirecting the process file descriptors is
+    the only route that works in both GUI and headless mode, and unlike
+    reading the Report view widget it captures exactly the window of one
+    execution rather than an accumulating buffer.
+
+    Failing to capture must never fail the execution, so every step is
+    guarded and the capture degrades to an empty string.
+    """
+
+    MAX_CHARS = 4000
+
+    def __init__(self) -> None:
+        self._saved: list[tuple[int, int]] = []
+        self._temp: Any = None
+        self.text = ""
+
+    def __enter__(self) -> _ConsoleCapture:
+        try:
+            self._temp = tempfile.TemporaryFile()
+            for fd in (1, 2):
+                self._saved.append((fd, os.dup(fd)))
+                os.dup2(self._temp.fileno(), fd)
+        except Exception:
+            self._restore()
+        return self
+
+    def _restore(self) -> None:
+        for fd, saved_fd in self._saved:
+            try:
+                os.dup2(saved_fd, fd)
+                os.close(saved_fd)
+            except Exception:
+                pass
+        self._saved = []
+
+    def __exit__(self, *_exc: Any) -> None:
+        self._restore()
+        try:
+            if self._temp is not None:
+                self._temp.seek(0)
+                captured = self._temp.read().decode("utf-8", "replace")
+                self.text = captured[-self.MAX_CHARS :].strip()
+        except Exception:
+            self.text = ""
+        finally:
+            try:
+                if self._temp is not None:
+                    self._temp.close()
+            except Exception:
+                pass
 
 
 class FreecadMCPPlugin:
@@ -923,9 +983,14 @@ class FreecadMCPPlugin:
             armed = True
 
         succeeded = False
+        console = _ConsoleCapture()
         try:
             try:
-                with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
+                with (
+                    console,
+                    redirect_stdout(stdout_capture),
+                    redirect_stderr(stderr_capture),
+                ):
                     compiled = compile(code, "<mcp>", "exec")
                     exec(compiled, exec_globals)  # noqa: S102
 
@@ -936,20 +1001,28 @@ class FreecadMCPPlugin:
                     "result": exec_globals.get("_result_"),
                     "stdout": stdout_capture.getvalue(),
                     "stderr": stderr_capture.getvalue(),
+                    "console": console.text,
                     "execution_time_ms": elapsed,
                 }
 
             except Exception as e:
                 elapsed = (time.perf_counter() - start) * 1000
+                traceback_text = traceback.format_exc()
+                # FreeCAD named the cause on its own console. Attach it to the
+                # traceback so it reaches the caller, which is the only place
+                # an MCP client can see anything at all.
+                if console.text:
+                    traceback_text += "\nFreeCAD reported:\n" + console.text
                 return {
                     "success": False,
                     "result": None,
                     "stdout": stdout_capture.getvalue(),
                     "stderr": stderr_capture.getvalue(),
+                    "console": console.text,
                     "execution_time_ms": elapsed,
                     "error_type": type(e).__name__,
                     "error_message": str(e),
-                    "error_traceback": traceback.format_exc(),
+                    "error_traceback": traceback_text,
                 }
         finally:
             if armed:

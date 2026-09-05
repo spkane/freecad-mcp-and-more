@@ -37,35 +37,36 @@ profile whose only defect, `Wire is not closed`, was never reported.
 - `bind_expressions`, `set_expression` and `define_variables` evaluate a
   failed expression with `evalExpression` to recover FreeCAD's message.
 - `validate_document` returns a `diagnostics` map keyed by object name.
-- `object_diagnostics` reads the Report view widget through Qt and
-  attaches the lines FreeCAD printed for that object.
+- The bridge executor captures FreeCAD's own console output at the
+  process file descriptors for the duration of one execution, and
+  attaches it to a failed call's traceback under "FreeCAD reported:".
 - `WorkflowToolError` states in prose that a failed call was rolled back.
 - `capture_feature_view` frames a focus with the `ViewSelection` view
   command; `View3DInventorPy` has no `fitSelection` method.
 
 ## Future work
 
-### 1. Report view capture is GUI-only and position-dependent
+### 1. Console capture is descriptor-level, with known limits
 
-Reading the Report view widget through Qt works, and is the only route
-available: `FreeCAD.Console` exposes `GetObservers`, `GetStatus` and
-`SetStatus`, but no `AddObserver`, so a Python console observer cannot
-be registered in FreeCAD 1.1.
+`FreeCAD.Console` exposes `GetObservers`, `GetStatus` and `SetStatus` but
+no `AddObserver`, so no Python console observer can be registered in
+FreeCAD 1.1. Reading the Report view widget through Qt works and survives
+the panel being hidden, but it is GUI-only and matches against an
+accumulating buffer, so a stale line can be attributed to a later
+failure. The executor therefore redirects file descriptors 1 and 2 for
+the duration of each execution instead. This works headless, needs no
+GUI, and is scoped to exactly one call.
 
-The consequences:
+Remaining limits:
 
-- Headless FreeCAD returns nothing. The guard is correct but the
-  diagnosis is simply absent there, which is where CI runs.
-- Attribution is by the `<name>:` prefix FreeCAD happens to use. A
-  message printed without that prefix is not attributed to any object.
-- The widget accumulates. Lines are matched across the whole buffer, so
-  a stale message from an earlier failure can be reported against a
-  later one. Capturing a baseline offset before each execution and
-  reporting only the delta would fix this, and belongs in the bridge
-  executor rather than in generated code.
-
-The durable fix is upstream: a console observer reachable from Python,
-or per-object error text on `App::DocumentObject`.
+- The redirect is process-wide. Another thread writing during the
+  execution window has its output captured too. The window is short and
+  the bridge executes on one thread, but this is not isolation.
+- `PrintMessage` output does not appear on the descriptors in GUI mode;
+  errors and warnings do, which is the diagnostic content that matters.
+- Output is truncated to the last 4000 characters.
+- Attribution is left to the reader: the captured text is attached whole
+  rather than split per object.
 
 ### 2. Feature recompute messages are not structurally available
 
