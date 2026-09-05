@@ -502,6 +502,7 @@ for candidate in affected_objects.values():
         errors.append("Object state is invalid")
     if "Touched" in state:
         errors.append("Object still needs recompute")
+    diagnosis = object_diagnostics(candidate)
     shape = getattr(candidate, "Shape", None)
     if candidate.TypeId == "PartDesign::Body":
         if shape is None or shape.isNull():
@@ -512,15 +513,31 @@ for candidate in affected_objects.values():
                 % len(shape.Solids)
             )
     if errors:
-        invalid_objects.append({{
+        entry = {{
             "name": candidate.Name,
             "state": state,
             "errors": errors,
-        }})
+        }}
+        if diagnosis:
+            entry["diagnosis"] = diagnosis
+        invalid_objects.append(entry)
 if invalid_objects:
-    raise RuntimeError(
-        f"VALIDATION_FAILED: Recompute failed: {{invalid_objects}}"
-    )
+    expression_errors = []
+    for binding in bindings:
+        obj = objects[binding["object_name"]]
+        try:
+            obj.evalExpression(binding["expression"])
+        except Exception as exc:
+            expression_errors.append({{
+                "object_name": obj.Name,
+                "property_path": binding["property_path"],
+                "expression": binding["expression"],
+                "error": str(exc).replace("\\n", " "),
+            }})
+    detail = f"VALIDATION_FAILED: Recompute failed: {{invalid_objects}}"
+    if expression_errors:
+        detail += f"; expression errors: {{expression_errors}}"
+    raise RuntimeError(detail)
 
 serialized = []
 for binding in bindings:

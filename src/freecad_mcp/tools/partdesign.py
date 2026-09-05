@@ -314,10 +314,27 @@ if created_body is not None:
     if getattr(created_body, "Tip", None) is not created_feature:
         validation_errors.append("Created feature is not the Body tip")
 if validation_errors:
-    raise RuntimeError(
-        "VALIDATION_FAILED: Feature validation failed: %s"
-        % validation_errors
+    feature_diagnosis = {}
+    for label, candidate in (
+        ("feature", created_feature),
+        ("body", created_body),
+        ("profile", getattr(created_feature, "Profile", None)),
+    ):
+        if candidate is None:
+            continue
+        if isinstance(candidate, (list, tuple)):
+            candidate = candidate[0] if candidate else None
+        if candidate is None:
+            continue
+        diagnosis = object_diagnostics(candidate)
+        if diagnosis:
+            feature_diagnosis[label] = diagnosis
+    detail = (
+        "VALIDATION_FAILED: Feature validation failed: %s" % validation_errors
     )
+    if feature_diagnosis:
+        detail += "; diagnosis: %s" % feature_diagnosis
+    raise RuntimeError(detail)
 """
 
 

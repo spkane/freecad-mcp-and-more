@@ -340,6 +340,52 @@ async def test_bind_expressions_applies_one_atomic_batch(
 
 
 @pytest.mark.asyncio
+async def test_bind_expressions_explains_why_a_recompute_failed(
+    register_tools: dict[str, object], mock_bridge: AsyncMock
+) -> None:
+    """A failed bind must name FreeCAD's reason, not restate the failure.
+
+    A benchmark run spent two hours in a repair loop because this tool
+    reported only `['Object state is invalid', 'Object still needs
+    recompute']` while FreeCAD's own Report view named the offending
+    expression and, for sketches, the redundant constraint index.
+    """
+    mock_bridge.execute_python.return_value = ExecutionResult(
+        success=True,
+        result={
+            "document_ref": {"name": "Lighthouse", "revision": "rev_2"},
+            "bindings": [],
+            "validation": {"valid": True, "invalid_objects": []},
+        },
+        stdout="",
+        stderr="",
+        execution_time_ms=10.0,
+    )
+
+    bind_expressions = register_tools["bind_expressions"]
+    await bind_expressions(  # type: ignore[operator]
+        bindings=[
+            ExpressionBinding(
+                object_name="LanternCavity",
+                property_path="Constraints[5]",
+                expression="Variables.lantern_diameter / 2 - 4",
+            )
+        ],
+        doc_name="Lighthouse",
+        expected_revision="rev_1",
+    )
+
+    code = mock_bridge.execute_python.call_args.args[0]
+    # FreeCAD's own diagnosis for every object the recompute left invalid.
+    assert "object_diagnostics(candidate)" in code
+    assert '"diagnosis"' in code
+    # The expression that could not evaluate, with FreeCAD's message.
+    assert 'obj.evalExpression(binding["expression"])' in code
+    assert "expression errors:" in code
+    compile(code, "<bind_expressions>", "exec")
+
+
+@pytest.mark.asyncio
 async def test_bind_expressions_rejects_duplicate_targets(
     register_tools: dict[str, object], mock_bridge: AsyncMock
 ) -> None:

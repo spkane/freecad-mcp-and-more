@@ -41,4 +41,38 @@ def require_expected_revision(document, expected_revision):
             % (expected_revision, current_revision)
         )
     return current_revision
+
+_BENIGN_STATUS = ("", "Touched", "Untouched", "Up-to-date", "Invalid")
+
+_SOLVER_DIAGNOSTICS = (
+    ("redundant", "RedundantConstraints"),
+    ("partially_redundant", "PartiallyRedundantConstraints"),
+    ("conflicting", "ConflictingConstraints"),
+    ("malformed", "MalformedConstraints"),
+)
+
+def object_diagnostics(candidate):
+    diagnosis = {}
+    try:
+        status = str(candidate.getStatusString())
+    except Exception:
+        status = ""
+    if status not in _BENIGN_STATUS:
+        diagnosis["status"] = status
+    if getattr(candidate, "TypeId", "") == "Sketcher::SketchObject":
+        solver = {}
+        for key, attribute in _SOLVER_DIAGNOSTICS:
+            try:
+                indices = [int(item) for item in getattr(candidate, attribute, [])]
+            except Exception:
+                indices = []
+            if indices:
+                solver[key] = indices
+        try:
+            solver["fully_constrained"] = bool(candidate.FullyConstrained)
+        except Exception:
+            pass
+        if solver:
+            diagnosis["sketch_solver"] = solver
+    return diagnosis
 """
