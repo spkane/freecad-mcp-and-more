@@ -31,3 +31,34 @@ class TestGuideTopics:
         """An unregistered topic name is a programming error, not a fallback."""
         with pytest.raises(KeyError, match="unknown guide topic"):
             load_guide("nonexistent")
+
+
+class TestGuideContent:
+    """Each topic document must carry the rules the core file promises."""
+
+    @pytest.mark.parametrize(
+        ("topic", "required"),
+        [
+            ("brief", "assumption"),
+            ("visual-evidence", "capture_feature_view"),
+            ("parameters", "App::VarSet"),
+            ("features", "datum"),
+            ("variants", "one governing"),
+            ("repair", "STALE_REVISION"),
+            ("delivery", "manifest"),
+        ],
+    )
+    def test_topic_carries_its_defining_rule(self, topic, required):
+        """A topic document without its defining rule is not the document."""
+        assert required in load_guide(topic)
+
+    def test_visual_evidence_forbids_describing_unseen_images(self):
+        """The Stage C failure mode is named explicitly."""
+        content = load_guide("visual-evidence")
+        assert "did not receive" in content
+
+    def test_repair_names_both_error_codes(self):
+        """Both observed rejection codes are covered."""
+        content = load_guide("repair")
+        assert "VALIDATION_FAILED" in content
+        assert "STALE_REVISION" in content
