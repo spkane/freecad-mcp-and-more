@@ -102,40 +102,70 @@ def test_server_instructions_are_the_parametric_guidance() -> None:
     assert mcp.instructions == PARAMETRIC_PARTS_GUIDANCE
 
 
-def test_guidance_contains_cross_workflow_quality_gates() -> None:
-    """The shared guide should preserve the benchmark-proven quality gates."""
-    from freecad_mcp.guidance import GUIDE_TOPICS, load_guide
+#: Each benchmark-proven phrase and the single document that owns it.
+#:
+#: ``"core"`` is ``PARAMETRIC_PARTS_GUIDE.md``, served as the server's
+#: instructions; every other key is a topic in ``GUIDE_TOPICS``, served as
+#: ``freecad://guide/<topic>``. Checking ownership rather than presence
+#: somewhere in the corpus is deliberate: an OR across all eight documents
+#: stays green when a rule migrates out of the document a model actually
+#: fetches for that task, which is the same as losing it.
+PHRASE_OWNERS: dict[str, str] = {
+    "coordinate frame": "brief",
+    "governing parameters": "brief",
+    "PartDesign::Body": "core",
+    "FullyConstrained": "core",
+    "create_sketch": "repair",
+    "create_constrained_sketch": "features",
+    "add_sketch_constraint": "repair",
+    "define_variables": "parameters",
+    "App::VarSet": "parameters",
+    "set_expression": "repair",
+    "bind_expressions": "parameters",
+    "query_objects": "core",
+    "pad_sketch": "features",
+    "validate_document": "core",
+    "close it, reopen": "delivery",
+    "re-import": "delivery",
+    "Pixels do not prove": "visual-evidence",
+    "native feature tree": "delivery",
+}
 
-    required_phrases = [
-        "coordinate frame",
-        "governing parameters",
-        "PartDesign::Body",
-        "FullyConstrained",
-        "create_sketch",
-        "create_constrained_sketch",
-        "add_sketch_constraint",
-        "define_variables",
-        "App::VarSet",
-        "set_expression",
-        "bind_expressions",
-        "query_objects",
-        "pad_sketch",
-        "validate_document",
-        "close it, reopen",
-        "re-import",
-        "Pixels do not prove",
-        "native feature tree",
-    ]
 
-    # Build corpus: core + all 7 topic guides
-    corpus = PARAMETRIC_PARTS_GUIDANCE
-    for topic in GUIDE_TOPICS:
-        corpus += "\n" + load_guide(topic)
+def _delivered_document(name: str) -> str:
+    """Return one delivered document by its owner key.
 
-    for phrase in required_phrases:
-        assert phrase in corpus, (
-            f"Required phrase missing from delivered corpus: {phrase!r}"
-        )
+    Args:
+        name: ``"core"`` for the always-on instructions, otherwise a topic
+            from ``GUIDE_TOPICS``.
+
+    Returns:
+        That document's markdown source.
+    """
+    from freecad_mcp.guidance import load_guide
+
+    if name == "core":
+        return PARAMETRIC_PARTS_GUIDANCE
+    return load_guide(name)
+
+
+@pytest.mark.parametrize(("phrase", "owner"), sorted(PHRASE_OWNERS.items()))
+def test_each_quality_gate_lives_in_the_document_that_owns_it(
+    phrase: str, owner: str
+) -> None:
+    """The benchmark-proven gates stay in their owning document."""
+    assert phrase in _delivered_document(owner), (
+        f"Required phrase {phrase!r} is missing from its owning document "
+        f"{owner!r}. Restore it there rather than relying on another guide "
+        f"carrying it."
+    )
+
+
+def test_every_phrase_owner_is_a_delivered_document() -> None:
+    """An owner key that names no served document protects nothing."""
+    from freecad_mcp.guidance import GUIDE_TOPICS
+
+    assert set(PHRASE_OWNERS.values()) <= {"core", *GUIDE_TOPICS}
 
 
 @pytest.mark.asyncio
