@@ -51,6 +51,44 @@ _SOLVER_DIAGNOSTICS = (
     ("malformed", "MalformedConstraints"),
 )
 
+def report_view_lines(names, limit=3):
+    # FreeCAD prints its most useful diagnoses -- "Wire is not closed",
+    # "Revolve axis intersects the sketch" -- to the Report view and nowhere
+    # an MCP client can reach. FreeCAD.Console exposes no AddObserver, so the
+    # only route is the widget itself, which exists in GUI mode only. Every
+    # step is guarded: a missing Report view must never fail a tool call.
+    matches = []
+    try:
+        if not FreeCAD.GuiUp:
+            return matches
+        import FreeCADGui
+
+        try:
+            from PySide6 import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
+        window = FreeCADGui.getMainWindow()
+        if window is None:
+            return matches
+        prefixes = tuple(str(name) + ":" for name in names if name)
+        if not prefixes:
+            return matches
+        for widget in window.findChildren(QtWidgets.QTextEdit):
+            if "eport" not in str(widget.objectName()):
+                continue
+            for line in widget.toPlainText().splitlines():
+                text = line.strip()
+                for prefix in prefixes:
+                    marker = text.find(prefix)
+                    if marker >= 0:
+                        detail = text[marker + len(prefix) :].strip()
+                        if detail and detail not in matches:
+                            matches.append(detail)
+    except Exception:
+        return matches
+    return matches[-limit:]
+
+
 def object_diagnostics(candidate):
     diagnosis = {}
     try:
@@ -59,6 +97,14 @@ def object_diagnostics(candidate):
         status = ""
     if status not in _BENIGN_STATUS:
         diagnosis["status"] = status
+    try:
+        reported = report_view_lines(
+            (getattr(candidate, "Name", ""), getattr(candidate, "Label", ""))
+        )
+    except Exception:
+        reported = []
+    if reported:
+        diagnosis["reported"] = reported
     if getattr(candidate, "TypeId", "") == "Sketcher::SketchObject":
         solver = {}
         for key, attribute in _SOLVER_DIAGNOSTICS:

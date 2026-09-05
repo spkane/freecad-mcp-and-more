@@ -77,3 +77,31 @@ def test_bridge_error_classifies_missing_objects() -> None:
     error = bridge_workflow_error("Feature not found: Pad", "Mutation failed")
 
     assert error.payload.category == "NOT_FOUND"
+
+
+def test_a_rolled_back_failure_says_so_in_words() -> None:
+    """`committed=false` alone did not stop a model from repairing nothing.
+
+    A two-hour benchmark run ended with the model deleting sketch geometry
+    to undo damage a failed call had never done. The message now states the
+    outcome in prose alongside the machine-readable flag.
+    """
+    error = WorkflowToolError("VALIDATION_FAILED", "Recompute failed")
+
+    text = str(error)
+    assert "committed=false" in text
+    assert "No changes were applied" in text
+    assert "do not repair or delete anything first" in text
+    assert error.payload.transaction_committed is False
+
+
+def test_a_committed_failure_tells_the_caller_to_inspect() -> None:
+    """A failure that did change the document needs the opposite advice."""
+    error = WorkflowToolError(
+        "BRIDGE_ERROR", "Partial write", transaction_committed=True
+    )
+
+    text = str(error)
+    assert "committed=true" in text
+    assert "left changed" in text
+    assert "No changes were applied" not in text

@@ -162,7 +162,22 @@ class WorkflowToolError(ValueError):
             transaction_committed=transaction_committed,
         )
         committed = str(transaction_committed).lower()
-        super().__init__(f"{category}: committed={committed}: {message}")
+        # `committed=false` is the machine-readable half. A benchmark run
+        # showed a model reading past it and then hunting for the damage it
+        # assumed a failed call had left behind -- inspecting objects, then
+        # deleting sketch geometry, for the last fifteen minutes of a
+        # two-hour run. State the outcome in words as well, so recovering
+        # from a failure means retrying the call, not repairing the model.
+        outcome = (
+            "The document was left changed; inspect it before retrying."
+            if transaction_committed
+            else (
+                "No changes were applied: this call was rolled back and the "
+                "document is exactly as it was before it. Fix the input and "
+                "retry; do not repair or delete anything first."
+            )
+        )
+        super().__init__(f"{category}: committed={committed}: {message} | {outcome}")
 
 
 def bridge_workflow_error(
