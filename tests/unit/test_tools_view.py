@@ -1,13 +1,18 @@
 """Tests for view and GUI tools module."""
 
 import base64
+import hashlib
 import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from mcp.types import CallToolResult
 
-from freecad_mcp.bridge.base import ExecutionResult, ScreenshotResult
+from freecad_mcp.bridge.base import (
+    ExecutionResult,
+    FeatureViewResult,
+    ScreenshotResult,
+)
 
 
 class TestViewTools:
@@ -272,6 +277,97 @@ class TestViewTools:
         assert metadata["normal_source"] == "WindowSketch"
         assert metadata["side"] == "front"
         assert metadata["path"].endswith(".png")
+
+    @pytest.mark.asyncio
+    async def test_capture_feature_view_reports_the_full_evidence_metadata(
+        self, register_tools, mock_bridge
+    ):
+        """Every field the bridge resolved has to reach the caller.
+
+        The camera direction and the hidden objects are decided inside
+        FreeCAD, so the metadata block is the only record of which of
+        +/-normal was looked along and whose datums were hidden to get the
+        shot. They were computed and then dropped once already; a model
+        cannot state its visual comparison without them.
+        """
+        image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+            "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        )
+        mock_bridge.capture_feature_view = AsyncMock(
+            return_value=FeatureViewResult(
+                success=True,
+                data=image,
+                format="png",
+                width=800,
+                height=600,
+                normal_source="WindowSketch",
+                side="back",
+                camera_direction=(0.0, -1.0, 0.0),
+                placement={
+                    "position": [1.0, 2.0, 3.0],
+                    "axis": [1.0, 0.0, 0.0],
+                    "angle_deg": 90.0,
+                    "normal": [0.0, -1.0, 0.0],
+                },
+                focus=["Pad"],
+                hidden_objects=["WindowSketch", "Origin"],
+                padding=0.25,
+            )
+        )
+
+        capture = register_tools["capture_feature_view"]
+        result = await capture(
+            normal_source="WindowSketch",
+            side="back",
+            focus=["Pad"],
+            padding=0.25,
+        )
+
+        assert result.isError is False
+        metadata = json.loads(
+            next(block for block in result.content if block.type == "text").text
+        )
+        assert metadata["camera_direction"] == [0.0, -1.0, 0.0]
+        assert metadata["placement"]["angle_deg"] == 90.0
+        assert metadata["placement"]["normal"] == [0.0, -1.0, 0.0]
+        assert metadata["focus"] == ["Pad"]
+        assert metadata["hidden_objects"] == ["WindowSketch", "Origin"]
+        assert metadata["padding"] == 0.25
+        assert metadata["side"] == "back"
+        assert (
+            metadata["image_sha256"]
+            == hashlib.sha256(base64.b64decode(image)).hexdigest()
+        )
+
+    @pytest.mark.asyncio
+    async def test_capture_feature_view_error_states_no_view_angle(
+        self, register_tools, mock_bridge
+    ):
+        """A support-normal capture has no fixed view angle to report.
+
+        Reporting the `normal_source` under a `view_angle` key told the
+        model something untrue about what it had asked for.
+        """
+        mock_bridge.capture_feature_view = AsyncMock(
+            return_value=FeatureViewResult(
+                success=False,
+                data=None,
+                error="focus objects not found: NoSuchSketch",
+                width=800,
+                height=600,
+            )
+        )
+
+        capture = register_tools["capture_feature_view"]
+        result = await capture(normal_source="WindowSketch", side="back")
+
+        assert result.isError is True
+        payload = json.loads(result.content[0].text)
+        assert "view_angle" not in payload
+        assert payload["normal_source"] == "WindowSketch"
+        assert payload["side"] == "back"
+        assert payload["error"] == "focus objects not found: NoSuchSketch"
 
     @pytest.mark.asyncio
     async def test_capture_feature_view_rejects_unknown_side(
