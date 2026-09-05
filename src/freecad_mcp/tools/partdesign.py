@@ -1468,7 +1468,8 @@ _result_ = {{
         bridge = await get_bridge()
 
         code = f"""
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 sketch = doc.getObject({sketch_name!r})
 if sketch is None:
     raise ValueError(f"Sketch not found: {sketch_name!r}")
@@ -1534,7 +1535,8 @@ _result_ = {{
         bridge = await get_bridge()
 
         code = f"""
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 sketch = doc.getObject({sketch_name!r})
 if sketch is None:
     raise ValueError(f"Sketch not found: {sketch_name!r}")
@@ -1590,7 +1592,8 @@ _result_ = {{
         code = f"""
 {WORKFLOW_HELPERS}
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     raise ValueError("NOT_FOUND: No active document")
 expected_revision = {expected_revision!r}
@@ -1671,7 +1674,8 @@ doc.recompute()
         code = f"""
 {WORKFLOW_HELPERS}
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     raise ValueError("NOT_FOUND: No active document")
 expected_revision = {expected_revision!r}
@@ -1750,7 +1754,8 @@ doc.recompute()
         code = f"""
 {WORKFLOW_HELPERS}
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     raise ValueError("NOT_FOUND: No active document")
 expected_revision = {expected_revision!r}
@@ -1853,7 +1858,8 @@ doc.recompute()
         code = f"""
 {WORKFLOW_HELPERS}
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     raise ValueError("NOT_FOUND: No active document")
 expected_revision = {expected_revision!r}
@@ -1963,7 +1969,8 @@ doc.recompute()
         code = f"""
 {WORKFLOW_HELPERS}
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     raise ValueError("NOT_FOUND: No active document")
 expected_revision = {expected_revision!r}
@@ -2064,7 +2071,8 @@ doc.recompute()
         code = f"""
 {WORKFLOW_HELPERS}
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     raise ValueError("NOT_FOUND: No active document")
 expected_revision = {expected_revision!r}
@@ -2171,7 +2179,8 @@ doc.recompute()
         code = f"""
 {WORKFLOW_HELPERS}
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     raise ValueError("NOT_FOUND: No active document")
 expected_revision = {expected_revision!r}
@@ -2266,7 +2275,8 @@ doc.recompute()
         code = f"""
 {WORKFLOW_HELPERS}
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     raise ValueError("NOT_FOUND: No active document")
 expected_revision = {expected_revision!r}
@@ -2347,7 +2357,8 @@ doc.recompute()
         code = f"""
 {WORKFLOW_HELPERS}
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     raise ValueError("NOT_FOUND: No active document")
 expected_revision = {expected_revision!r}
@@ -2429,7 +2440,8 @@ doc.recompute()
         code = f"""
 {WORKFLOW_HELPERS}
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     raise ValueError("NOT_FOUND: No active document")
 expected_revision = {expected_revision!r}
@@ -2492,7 +2504,8 @@ doc.recompute()
         bridge = await get_bridge()
 
         code = f"""
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 sketch = doc.getObject({sketch_name!r})
 if sketch is None:
     raise ValueError(f"Sketch not found: {sketch_name!r}")
@@ -2547,7 +2560,8 @@ _result_ = {{
         bridge = await get_bridge()
 
         code = f"""
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 sketch = doc.getObject({sketch_name!r})
 if sketch is None:
     raise ValueError(f"Sketch not found: {sketch_name!r}")
@@ -2602,7 +2616,8 @@ _result_ = {{
         bridge = await get_bridge()
 
         code = f"""
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 sketch = doc.getObject({sketch_name!r})
 if sketch is None:
     raise ValueError(f"Sketch not found: {sketch_name!r}")
@@ -2661,7 +2676,8 @@ _result_ = {{
         code = f"""
 {WORKFLOW_HELPERS}
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     raise ValueError("NOT_FOUND: No active document")
 expected_revision = {expected_revision!r}
@@ -2901,7 +2917,8 @@ import Sketcher
 
 {WORKFLOW_HELPERS}
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     raise ValueError("NOT_FOUND: No active document")
 sketch = doc.getObject({sketch_name!r})
@@ -3016,7 +3033,8 @@ _result_ = {{
         bridge = await get_bridge()
 
         code = f"""
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 sketch = doc.getObject({sketch_name!r})
 if sketch is None:
     raise ValueError(f"Sketch not found: {sketch_name!r}")
@@ -3055,7 +3073,8 @@ _result_ = {{
         bridge = await get_bridge()
 
         code = f"""
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 sketch = doc.getObject({sketch_name!r})
 if sketch is None:
     raise ValueError(f"Sketch not found: {sketch_name!r}")
@@ -3102,7 +3121,8 @@ _result_ = {{
         bridge = await get_bridge()
 
         code = f"""
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 sketch = doc.getObject({sketch_name!r})
 if sketch is None:
     raise ValueError(f"Sketch not found: {sketch_name!r}")
@@ -3234,7 +3254,8 @@ _result_ = {{
         bridge = await get_bridge()
 
         code = f"""
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 sketch = doc.getObject({sketch_name!r})
 if sketch is None:
     raise ValueError(f"Sketch not found: {sketch_name!r}")

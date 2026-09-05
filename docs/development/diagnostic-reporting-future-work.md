@@ -105,17 +105,27 @@ read of the same object still cannot recover the reason.
 
 - `Queue processing error: argument 1 must be str, not int`, seen once
   at 15:20:43 during a run. Not traced to a cause.
-- The server sets the deprecated `Midplane` property on extrusions.
-  FreeCAD warns that it has been replaced by `SideType` and will be
-  removed.
+
+The `Midplane` deprecation warning at 10:09:24 is **not** the server's.
+Probed against the running FreeCAD 1.1 on 2026-09-05: `Pad` and `Pocket`
+carry both `SideType` and `Midplane`, and only setting `Midplane` warns;
+`Revolution` and `Groove` have no `SideType` at all and setting
+`Midplane` on them is silent. The pad generator has preferred `SideType`
+since `838e6df`, and neither run's trace mentions `Midplane`. Nothing to
+change; the warning comes from outside the tool path.
 
 ### 4. Pre-existing code generation defect
 
-`"is" with 'str' literal` appears three times in the screenshot codegen
-and recurs roughly 27 more times across `embedded.py`, `socket.py` and
-`xmlrpc.py`. It is a `SyntaxWarning` in the operator's console today and
-a `SyntaxError` under `-W error`. The same defect was fixed in
-`view_code.py` by binding the name to a variable before comparison.
+Fixed on 2026-09-05. `{doc_name!r} is None` rendered as
+`'Target' is None` at 55 sites across `documents.py`, `export.py`,
+`partdesign.py`, `view.py`, `embedded.py`, `socket.py` and `xmlrpc.py`,
+plus one `{label!r}` site in `variables.py` -- a `SyntaxWarning` in the
+operator's console and a `SyntaxError` under `-W error`. Every site now
+binds the value to a name before comparing it, the fix already applied to
+`view_code.py`. `tests/unit/test_generated_code_literals.py` walks the
+shipped source with `ast` and fails on any f-string that puts
+`is None` directly after an interpolation, so a new template cannot
+reintroduce it.
 
 ### 5. Never verified
 

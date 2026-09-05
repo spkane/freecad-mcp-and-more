@@ -23,8 +23,9 @@ def _build_object_selection_code(object_names: list[str] | None) -> str:
     """
     return f"""
 # Get objects to export
-if {object_names!r} is not None:
-    objects = [doc.getObject(n) for n in {object_names!r}]
+requested_object_names = {object_names!r}
+if requested_object_names is not None:
+    objects = [doc.getObject(n) for n in requested_object_names]
 elif FreeCAD.GuiUp:
     # GUI mode: export visible objects with shapes
     objects = [
@@ -76,7 +77,8 @@ def register_export_tools(mcp: Any, get_bridge: Callable[[], Awaitable[Any]]) ->
         code = f"""
 import Part
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     raise ValueError("No document found")
 {_build_object_selection_code(object_names)}
@@ -130,7 +132,8 @@ import Mesh
 import MeshPart
 import Part
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     raise ValueError("No document found")
 {_build_object_selection_code(object_names)}
@@ -187,7 +190,8 @@ import os
 if not os.path.exists({file_path!r}):
     raise FileNotFoundError(f"File not found: {file_path!r}")
 
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     doc = FreeCAD.newDocument("Imported")
 

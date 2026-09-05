@@ -433,7 +433,8 @@ def register_view_tools(mcp: Any, get_bridge: Callable[[], Awaitable[Any]]) -> N
 if not FreeCAD.GuiUp:
     _result_ = {{"success": False, "error": "GUI not available - visibility cannot be set in headless mode"}}
 else:
-    doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+    requested_doc_name = {doc_name!r}
+    doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
     if doc is None:
         _result_ = {{"success": False, "error": "No document found"}}
     else:
@@ -469,7 +470,8 @@ else:
         bridge = await get_bridge()
 
         code = f"""
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     _result_ = {{"success": False, "can_undo": False, "error": "No document found"}}
 elif doc.UndoCount > 0:
@@ -502,7 +504,8 @@ else:
         bridge = await get_bridge()
 
         code = f"""
-doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
+requested_doc_name = {doc_name!r}
+doc = FreeCAD.ActiveDocument if requested_doc_name is None else FreeCAD.getDocument(requested_doc_name)
 if doc is None:
     _result_ = {{"success": False, "can_redo": False, "error": "No document found"}}
 elif doc.RedoCount > 0:

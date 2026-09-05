@@ -196,8 +196,9 @@ if var_set is not None:
 
 if var_set is None:
     var_set = doc.addObject("App::VarSet", variable_set_name)
-if {label!r} is not None:
-    var_set.Label = {label!r}
+requested_label = {label!r}
+if requested_label is not None:
+    var_set.Label = requested_label
 
 # Create every property first so expressions can reference any batch member.
 for definition in definitions:
