@@ -315,7 +315,13 @@ try:
     pad = body.newObject("PartDesign::Pad", pad_name)
     pad.Profile = sketch
     pad.Length = {length}
-    pad.Symmetric = {symmetric}
+    _symmetric = {symmetric}
+    if hasattr(pad, "SideType"):
+        pad.SideType = "Symmetric" if _symmetric else "One side"
+    elif hasattr(pad, "Midplane"):
+        pad.Midplane = _symmetric
+    else:
+        pad.Symmetric = _symmetric
     pad.Reversed = {reversed}
 
     doc.recompute()
@@ -633,7 +639,11 @@ try:
     rev = body.newObject("PartDesign::Revolution", rev_name)
     rev.Profile = sketch
     rev.Angle = {angle}
-    rev.Symmetric = {symmetric}
+    _symmetric = {symmetric}
+    if hasattr(rev, "Midplane"):
+        rev.Midplane = _symmetric
+    else:
+        rev.Symmetric = _symmetric
     rev.Reversed = {reversed}
 
     # Set axis reference
@@ -724,7 +734,11 @@ try:
     groove = body.newObject("PartDesign::Groove", groove_name)
     groove.Profile = sketch
     groove.Angle = {angle}
-    groove.Symmetric = {symmetric}
+    _symmetric = {symmetric}
+    if hasattr(groove, "Midplane"):
+        groove.Midplane = _symmetric
+    else:
+        groove.Symmetric = _symmetric
     groove.Reversed = {reversed}
 
     # Set axis reference
