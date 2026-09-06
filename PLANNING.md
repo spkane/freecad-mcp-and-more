@@ -339,7 +339,7 @@ execution.
 
 ### Repair the SDK boundary first
 
-MCP Python SDK 2.0 is now the default installed by `pip install mcp`. The current
+MCP Python SDK 2.x is now the default installed by `pip install mcp`. The current
 SDK documentation explicitly recommends either migrating or adding a `<2` upper
 bound. The present server uses the v1 `FastMCP` import, which raises
 `ModuleNotFoundError` on 2.x.
