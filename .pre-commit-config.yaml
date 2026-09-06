@@ -68,7 +68,7 @@ repos:
         additional_dependencies:
           - pydantic>=2.10.0
           - pydantic-settings>=2.7.0
-          - mcp>=1.25.0
+          - mcp>=1.29.1,<2
         # Note: mypy doesn't natively support .FCMacro, so we skip those files
         # FCMacro files are checked by ruff and bandit instead
         args: [--config-file=pyproject.toml]
