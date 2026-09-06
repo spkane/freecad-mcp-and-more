@@ -131,7 +131,7 @@ jobs:
         uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: ${{ env.IMAGE_NAME }}:test
-          version: "v0.68.2"
+          version: "v0.74.0"
           severity: "HIGH,CRITICAL"
           exit-code: "1"
           format: "table"
@@ -142,7 +142,7 @@ jobs:
         uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: ${{ env.IMAGE_NAME }}:test
-          version: "v0.68.2"
+          version: "v0.74.0"
           severity: "MEDIUM,LOW"
           exit-code: "0"
           format: "table"
@@ -155,7 +155,7 @@ jobs:
         uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: ${{ env.IMAGE_NAME }}:test
-          version: "v0.68.2"
+          version: "v0.74.0"
           format: "sarif"
           output: "trivy-results.sarif"
           cache-dir: .trivy-cache

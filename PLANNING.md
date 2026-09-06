@@ -34,16 +34,16 @@ Python, operating-system, and MCP-client combinations.
 
 ## Immediate release blockers
 
-| Priority | Blocker | Why it blocks release | Required result |
-| --- | --- | --- | --- |
-| P0 | MCP dependency admits incompatible 2.x | `mcp>=1.25.0` now resolves MCP SDK 2.x, but the server imports the removed `mcp.server.fastmcp` path | For `0.6.3`, require the latest supported 1.x release with `<2`; migrate separately for `0.7.0` |
-| P0 | Unauthenticated code execution bridge | Any process able to reach ports 9875 or 9876 can submit Python that runs inside FreeCAD with the user's privileges | Per-launch authentication, loopback-only binding, bounded requests, and an explicit unsafe-code policy |
-| P0 | HTTP transport listens on all interfaces | Streamable HTTP binds `0.0.0.0` without application authentication or explicit Origin policy | Bind to `127.0.0.1` by default; require deliberate remote configuration, authentication, and TLS termination |
-| P0 | Workbench release archive cannot be built | The workflow copies `LICENSE`, but only `LICENSE-CODE` and `LICENSE-ICON` exist | Archive job passes and manifest/archive license names agree |
-| P0 | Package verification fails | The current build succeeds, but locked Twine 6.2 rejects generated Metadata 2.5 | Upgrade the packaging verification stack and make `twine check` or its supported replacement pass in CI |
-| P0 | Runtime default contradicts documentation | Configuration defaults to embedded mode, while the CLI and docs say XML-RPC; embedded mode can crash on macOS | Make XML-RPC or socket the single default everywhere; make embedded explicitly opt-in and Linux-only |
-| P0 | Published identity is split across old and new repository names | Package URLs, docs, Docker labels, and PyPI provenance still reference `freecad-robust-mcp-and-more` | All live metadata points to `freecad-addon-robust-mcp-server`; PyPI Trusted Publishing is reconfigured |
-| P0 | Real FreeCAD integration has not been re-certified | Unit tests cannot establish that GUI-thread, transport, file import/export, and shutdown behavior work in current FreeCAD | Required headless and GUI integration matrices pass against supported stable FreeCAD versions |
+| Priority | Blocker                                                         | Why it blocks release                                                                                                     | Required result                                                                                              |
+| -------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| P0       | MCP dependency admits incompatible 2.x                          | `mcp>=1.25.0` now resolves MCP SDK 2.x, but the server imports the removed `mcp.server.fastmcp` path                      | For `0.6.3`, require the latest supported 1.x release with `<2`; migrate separately for `0.7.0`              |
+| P0       | Unauthenticated code execution bridge                           | Any process able to reach ports 9875 or 9876 can submit Python that runs inside FreeCAD with the user's privileges        | Per-launch authentication, loopback-only binding, bounded requests, and an explicit unsafe-code policy       |
+| P0       | HTTP transport listens on all interfaces                        | Streamable HTTP binds `0.0.0.0` without application authentication or explicit Origin policy                              | Bind to `127.0.0.1` by default; require deliberate remote configuration, authentication, and TLS termination |
+| P0       | Workbench release archive cannot be built                       | The workflow copies `LICENSE`, but only `LICENSE-CODE` and `LICENSE-ICON` exist                                           | Archive job passes and manifest/archive license names agree                                                  |
+| P0       | Package verification fails                                      | The current build succeeds, but locked Twine 6.2 rejects generated Metadata 2.5                                           | Upgrade the packaging verification stack and make `twine check` or its supported replacement pass in CI      |
+| P0       | Runtime default contradicts documentation                       | Configuration defaults to embedded mode, while the CLI and docs say XML-RPC; embedded mode can crash on macOS             | Make XML-RPC or socket the single default everywhere; make embedded explicitly opt-in and Linux-only         |
+| P0       | Published identity is split across old and new repository names | Package URLs, docs, Docker labels, and PyPI provenance still reference `freecad-robust-mcp-and-more`                      | All live metadata points to `freecad-addon-robust-mcp-server`; PyPI Trusted Publishing is reconfigured       |
+| P0       | Real FreeCAD integration has not been re-certified              | Unit tests cannot establish that GUI-thread, transport, file import/export, and shutdown behavior work in current FreeCAD | Required headless and GUI integration matrices pass against supported stable FreeCAD versions                |
 
 ## Codebase map
 
@@ -52,14 +52,14 @@ Python, operating-system, and MCP-client combinations.
 The repository contains two separately versioned products plus shared release and
 documentation infrastructure.
 
-| Product or area | Responsibility | Current shape | Release unit |
-| --- | --- | --- | --- |
-| Python MCP server | Presents tools, resources, and prompts to MCP clients; delegates FreeCAD work to a bridge | `freecad_mcp` package, CLI `freecad-mcp`, stdio or Streamable HTTP | PyPI package, Docker image, GitHub release |
-| FreeCAD Robust MCP Bridge | Runs inside FreeCAD, serializes work onto the GUI thread, and exposes XML-RPC and newline-delimited JSON-RPC | Namespaced FreeCAD addon under `freecad/RobustMCPBridge` | FreeCAD Addon Manager repository and GitHub archive |
-| Bridge adapters | Let the MCP server use XML-RPC, socket JSON-RPC, or direct embedded imports | Common `FreecadBridge` abstraction with three implementations | Included in the Python package |
-| MCP surface | CAD operations grouped by domain | 152 tools, 13 resources, and 12 prompts | Included in the Python package |
-| Documentation | Installation, connection modes, API references, development, and release procedures | MkDocs Material with versioning through mike | GitHub Pages |
-| Engineering automation | Development commands, tests, security scans, packaging, docs, and releases | `just`, `uv`, pre-commit, GitHub Actions, Dependabot | Repository infrastructure |
+| Product or area           | Responsibility                                                                                               | Current shape                                                      | Release unit                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | --------------------------------------------------- |
+| Python MCP server         | Presents tools, resources, and prompts to MCP clients; delegates FreeCAD work to a bridge                    | `freecad_mcp` package, CLI `freecad-mcp`, stdio or Streamable HTTP | PyPI package, Docker image, GitHub release          |
+| FreeCAD Robust MCP Bridge | Runs inside FreeCAD, serializes work onto the GUI thread, and exposes XML-RPC and newline-delimited JSON-RPC | Namespaced FreeCAD addon under `freecad/RobustMCPBridge`           | FreeCAD Addon Manager repository and GitHub archive |
+| Bridge adapters           | Let the MCP server use XML-RPC, socket JSON-RPC, or direct embedded imports                                  | Common `FreecadBridge` abstraction with three implementations      | Included in the Python package                      |
+| MCP surface               | CAD operations grouped by domain                                                                             | 152 tools, 13 resources, and 12 prompts                            | Included in the Python package                      |
+| Documentation             | Installation, connection modes, API references, development, and release procedures                          | MkDocs Material with versioning through mike                       | GitHub Pages                                        |
+| Engineering automation    | Development commands, tests, security scans, packaging, docs, and releases                                   | `just`, `uv`, pre-commit, GitHub Actions, Dependabot               | Repository infrastructure                           |
 
 ### Runtime flow
 
@@ -87,17 +87,17 @@ same minor version.
 
 ### Source organization
 
-| Area | Notable modules | Notes |
-| --- | --- | --- |
-| Server startup | `freecad_mcp.server`, `freecad_mcp.config` | Creates the MCP server, selects the FreeCAD bridge, and starts stdio or HTTP |
-| Bridge contract | `freecad_mcp.bridge.base` | Shared asynchronous CAD and execution interface |
-| External adapters | `freecad_mcp.bridge.xmlrpc`, `freecad_mcp.bridge.socket` | Client implementations for the in-FreeCAD workbench |
-| Embedded adapter | `freecad_mcp.bridge.embedded` | Linux-only direct import; version and ABI sensitive |
-| Tool domains | `freecad_mcp.tools` package | Documents, objects, Part, Part Design, Sketcher, Draft, Spreadsheet, view, import/export, macros, execution, validation, and supporting domains |
-| Resources and prompts | `freecad_mcp.resources`, `freecad_mcp.prompts` | Read-oriented context and reusable workflows |
-| Workbench lifecycle | `RobustMCPBridge.init_gui`, command and preference modules | Registration, controls, status UI, and settings |
-| Workbench bridge | `RobustMCPBridge.freecad_mcp_bridge.server` | TCP/XML-RPC listeners, execution queue, arbitrary Python execution, and shutdown |
-| Tests | Unit, integration, and `just` command tests | Strong unit breadth; real bridge coverage is intentionally excluded from unit coverage |
+| Area                  | Notable modules                                            | Notes                                                                                                                                           |
+| --------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Server startup        | `freecad_mcp.server`, `freecad_mcp.config`                 | Creates the MCP server, selects the FreeCAD bridge, and starts stdio or HTTP                                                                    |
+| Bridge contract       | `freecad_mcp.bridge.base`                                  | Shared asynchronous CAD and execution interface                                                                                                 |
+| External adapters     | `freecad_mcp.bridge.xmlrpc`, `freecad_mcp.bridge.socket`   | Client implementations for the in-FreeCAD workbench                                                                                             |
+| Embedded adapter      | `freecad_mcp.bridge.embedded`                              | Linux-only direct import; version and ABI sensitive                                                                                             |
+| Tool domains          | `freecad_mcp.tools` package                                | Documents, objects, Part, Part Design, Sketcher, Draft, Spreadsheet, view, import/export, macros, execution, validation, and supporting domains |
+| Resources and prompts | `freecad_mcp.resources`, `freecad_mcp.prompts`             | Read-oriented context and reusable workflows                                                                                                    |
+| Workbench lifecycle   | `RobustMCPBridge.init_gui`, command and preference modules | Registration, controls, status UI, and settings                                                                                                 |
+| Workbench bridge      | `RobustMCPBridge.freecad_mcp_bridge.server`                | TCP/XML-RPC listeners, execution queue, arbitrary Python execution, and shutdown                                                                |
+| Tests                 | Unit, integration, and `just` command tests                | Strong unit breadth; real bridge coverage is intentionally excluded from unit coverage                                                          |
 
 The project is not small: the production Python under `src/` and `freecad/` is
 approximately 20,900 lines, tests approximately 17,500 lines, and documentation
@@ -136,23 +136,23 @@ approximately 7,200 lines. This supports a staged release rather than a rewrite.
 These checks were run against the audited working tree. They are evidence for
 planning, not a release certificate.
 
-| Check | Result | Interpretation |
-| --- | --- | --- |
-| Unit tests | 420 passed | Strong baseline for server logic |
-| Unit coverage | 83.47%, threshold 80% | Passes the configured gate; bridge adapters are excluded |
-| `just` command syntax tests | 190 passed | Command recipes parse correctly |
-| Ruff | Passed with one invalid `noqa` warning in workbench path utilities | Fix warning before raising lint strictness |
-| MyPy | Passed for 26 server source files | Does not type-check the FreeCAD workbench |
-| MkDocs strict build | Passed | Current documentation builds, even though many links are stale |
-| Actionlint | Passed | Workflow syntax is valid; semantic release defects remain |
-| Bandit | Passed for server and workbench when invoked directly | Configuration skips the exact arbitrary-execution and XML-RPC rules central to this product |
-| Lockfile check | Passed | The checked-in lock is internally consistent |
-| Python package build | Passed | Produced a development wheel and source archive |
-| Package metadata check | Failed | Twine 6.2 rejects Metadata 2.5 |
-| CLI version | Failed behaviorally | `freecad-mcp --version` prints `unknown` because it queries distribution `freecad-mcp` instead of `freecad-robust-mcp` |
-| Safety scan | Inconclusive | Account is authenticated, but the scan did not return and was stopped |
-| Dependency inventory | Completed | Many updates are available; MCP 2.x is the only immediate runtime-major incompatibility identified |
-| Real FreeCAD integration | Not run in this audit | Must be a release gate, not inferred from unit tests |
+| Check                       | Result                                                             | Interpretation                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Unit tests                  | 420 passed                                                         | Strong baseline for server logic                                                                                       |
+| Unit coverage               | 83.47%, threshold 80%                                              | Passes the configured gate; bridge adapters are excluded                                                               |
+| `just` command syntax tests | 190 passed                                                         | Command recipes parse correctly                                                                                        |
+| Ruff                        | Passed with one invalid `noqa` warning in workbench path utilities | Fix warning before raising lint strictness                                                                             |
+| MyPy                        | Passed for 26 server source files                                  | Does not type-check the FreeCAD workbench                                                                              |
+| MkDocs strict build         | Passed                                                             | Current documentation builds, even though many links are stale                                                         |
+| Actionlint                  | Passed                                                             | Workflow syntax is valid; semantic release defects remain                                                              |
+| Bandit                      | Passed for server and workbench when invoked directly              | Configuration skips the exact arbitrary-execution and XML-RPC rules central to this product                            |
+| Lockfile check              | Passed                                                             | The checked-in lock is internally consistent                                                                           |
+| Python package build        | Passed                                                             | Produced a development wheel and source archive                                                                        |
+| Package metadata check      | Failed                                                             | Twine 6.2 rejects Metadata 2.5                                                                                         |
+| CLI version                 | Failed behaviorally                                                | `freecad-mcp --version` prints `unknown` because it queries distribution `freecad-mcp` instead of `freecad-robust-mcp` |
+| Safety scan                 | Inconclusive                                                       | Account is authenticated, but the scan did not return and was stopped                                                  |
+| Dependency inventory        | Completed                                                          | Many updates are available; MCP 2.x is the only immediate runtime-major incompatibility identified                     |
+| Real FreeCAD integration    | Not run in this audit                                              | Must be a release gate, not inferred from unit tests                                                                   |
 
 The local `uv` environment ran tests with Python 3.13.11 even though development
 configuration and FreeCAD compatibility guidance call for Python 3.11. This is a
@@ -203,8 +203,10 @@ local user able to reach the port submits Python that reads files, modifies CAD
 documents, or runs with the FreeCAD user's permissions. A non-loopback bind turns
 the same path into remote unauthenticated execution.  
 **Remediation:** Generate a cryptographically random token for each bridge start,
-store it with user-only permissions or pass it through a protected process
-channel, and validate it in constant time before every method. Bind explicitly
+exchange it through OS-protected IPC such as a Unix-domain socket with
+filesystem ACLs or a Windows named pipe, or store it in the platform credential
+store; do not rely on a user-readable token file as the sole pairing proof.
+Validate it in constant time before every method. Bind explicitly
 to `127.0.0.1` and `::1`; do not accept arbitrary bind hosts in normal UI. Prefer
 a Unix-domain socket on Unix and a protected named pipe on Windows in a later
 transport revision. Put arbitrary execution in an opt-in profile and show a
@@ -377,13 +379,13 @@ for a model to select reliably.
 
 Introduce explicit profiles without deleting expert functionality:
 
-| Profile | Intended content | Default |
-| --- | --- | --- |
-| `core-read` | Version, document/list/get, selection, view/status, and other nonmutating inspection tools | Yes for first connection |
-| `modeling` | Common document, sketch, Part, Part Design, transform, and export workflows | Yes for normal local use |
-| `domain-*` | Draft, Spreadsheet, advanced Part, advanced Sketcher, and other specialist groups | Opt-in |
-| `unsafe-code` | Arbitrary Python and macro creation/execution | No; explicit enable plus visible warning |
-| `all` | Full compatibility catalog for expert users and regression testing | No |
+| Profile       | Intended content                                                                           | Default                                  |
+| ------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| `core-read`   | Version, document/list/get, selection, view/status, and other nonmutating inspection tools | Yes for first connection                 |
+| `modeling`    | Common document, sketch, Part, Part Design, transform, and export workflows                | Yes for normal local use                 |
+| `domain-*`    | Draft, Spreadsheet, advanced Part, advanced Sketcher, and other specialist groups          | Opt-in                                   |
+| `unsafe-code` | Arbitrary Python and macro creation/execution                                              | No; explicit enable plus visible warning |
+| `all`         | Full compatibility catalog for expert users and regression testing                         | No                                       |
 
 For every tool:
 
@@ -713,7 +715,7 @@ and published configuration cannot accidentally expose that capability on a LAN.
 - Run stable FreeCAD GUI and headless integration on all supported platforms.
 - Test PyPI-style wheel install, Docker-to-host bridge, manual workbench archive,
   and Addon Manager developer installation.
-- Publish `0.6.3rc1` to TestPyPI and a GitHub prerelease; test from clean systems.
+- Publish `0.6.3-rc1` to TestPyPI and a GitHub prerelease; test from clean systems.
 - Resolve all critical/high security findings and all release workflow failures.
 
 **Exit gate:** Release checklist is green using immutable candidate artifacts and
