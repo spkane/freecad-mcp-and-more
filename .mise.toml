@@ -13,7 +13,7 @@ pre-commit = "4.5"      # pre-commit hooks
 github-cli = "2.74"     # GitHub CLI for PR/issue management
 
 # Security and code quality tools
-trivy = "0.68"          # container vulnerability scanner
+trivy = "0.74.0"          # container vulnerability scanner
 gitleaks = "8.30"       # secrets scanner
 actionlint = "1.7"      # GitHub Actions linter
 # Note: hadolint and shellcheck are managed by their pre-commit repos
