@@ -202,14 +202,15 @@ request path.
 local user able to reach the port submits Python that reads files, modifies CAD
 documents, or runs with the FreeCAD user's permissions. A non-loopback bind turns
 the same path into remote unauthenticated execution.  
-**Remediation:** Generate a cryptographically random token for each bridge start,
-exchange it through OS-protected IPC such as a Unix-domain socket with
-filesystem ACLs or a Windows named pipe, or store it in the platform credential
-store; do not rely on a user-readable token file as the sole pairing proof.
-Validate it in constant time before every method. Bind explicitly
-to `127.0.0.1` and `::1`; do not accept arbitrary bind hosts in normal UI. Prefer
-a Unix-domain socket on Unix and a protected named pipe on Windows in a later
-transport revision. Put arbitrary execution in an opt-in profile and show a
+**Remediation:** Require application-level challenge-response for every bridge
+connection, using a client-specific key that is protected by a distinct OS
+identity, sandbox boundary, or hardware-backed credential. Unix peer credentials
+and Windows named-pipe identity checks are supplementary transport checks, not
+pairing proof by themselves. Store pairing material only in the platform
+credential store or exchange it through protected IPC; do not rely on a
+user-readable per-launch token. Validate proofs in constant time before every
+method. Bind explicitly to `127.0.0.1` and `::1`; do not accept arbitrary bind
+hosts in normal UI. Put arbitrary execution in an opt-in profile and show a
 persistent FreeCAD warning while it is enabled.
 
 #### CRITICAL-2: MCP HTTP exposes the privileged tool set on all interfaces
