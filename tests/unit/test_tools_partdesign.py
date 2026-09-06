@@ -1126,3 +1126,86 @@ class TestPartDesignTools:
         assert result["success"] is True
         assert result["is_construction"] is True
         mock_bridge.execute_python.assert_called_once()
+
+
+class TestExternalGeometryCount:
+    """External geometry must be counted by subelement, not by linked object.
+
+    `Sketch.ExternalGeometryCount` was removed in FreeCAD 1.1. Its replacement is
+    not `len(sketch.ExternalGeometry)`: that property is an
+    App::PropertyLinkSubList holding one entry per linked *object*, with the
+    referenced subelements collapsed into a tuple. Three edges taken from one
+    solid therefore give len() == 1, so the subelements have to be summed.
+    """
+
+    @pytest.fixture
+    def mock_mcp(self):
+        mcp = MagicMock()
+        mcp._registered_tools = {}
+
+        def tool_decorator():
+            def wrapper(func):
+                mcp._registered_tools[func.__name__] = func
+                return func
+
+            return wrapper
+
+        mcp.tool = tool_decorator
+        return mcp
+
+    @pytest.fixture
+    def mock_bridge(self):
+        bridge = AsyncMock()
+        bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={"success": True, "external_geometry_count": 0},
+                stdout="",
+                stderr="",
+                error_traceback=None,
+                execution_time_ms=1.0,
+            )
+        )
+        return bridge
+
+    @pytest.fixture
+    def register_tools(self, mock_mcp, mock_bridge):
+        from freecad_mcp.tools.partdesign import register_partdesign_tools
+
+        async def get_bridge():
+            return mock_bridge
+
+        register_partdesign_tools(mock_mcp, get_bridge)
+        return mock_mcp._registered_tools
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("tool", "kwargs"),
+        [
+            ("get_sketch_info", {"sketch_name": "Sketch"}),
+            (
+                "add_external_geometry",
+                {"sketch_name": "Sketch", "object_name": "Box", "element": "Edge1"},
+            ),
+        ],
+    )
+    async def test_counts_subelements_not_linked_objects(
+        self, register_tools, mock_bridge, tool, kwargs
+    ):
+        await register_tools[tool](**kwargs)
+        code = mock_bridge.execute_python.call_args[0][0]
+        compile(code, "<generated>", "exec")
+
+        assert "ExternalGeometryCount" not in code, "removed in FreeCAD 1.1"
+        assert "sum(len(_s) for _, _s in sketch.ExternalGeometry)" in code
+
+    def test_summing_matches_freecad_link_sub_list_shape(self):
+        """Pin the semantics the generated expression relies on.
+
+        Mirrors what FreeCAD 1.1.3 returns after three addExternal() calls
+        against one object: a single entry whose subelements are a 3-tuple.
+        """
+        external_geometry = [(object(), ("Edge1", "Edge2", "Edge3"))]
+
+        assert len(external_geometry) == 1  # the tempting but wrong answer
+        assert sum(len(_s) for _, _s in external_geometry) == 3
