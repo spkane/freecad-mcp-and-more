@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/spkane-freecad-addon-robust-mcp-server-badge.png)](https://mseep.ai/app/spkane-freecad-addon-robust-mcp-server)
+
 # FreeCAD Robust MCP Server
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
