@@ -268,7 +268,7 @@ _result_ = {{
     async def pad_sketch(
         sketch_name: str,
         length: float,
-        symmetric: bool = False,
+        side_type: str = "One side",
         reversed: bool = False,
         name: str | None = None,
         doc_name: str | None = None,
@@ -278,7 +278,10 @@ _result_ = {{
         Args:
             sketch_name: Name of the sketch to pad.
             length: Pad length (extrusion distance).
-            symmetric: Whether to extrude symmetrically. Defaults to False.
+            side_type: Extrusion direction type. Options:
+                - "One side" - Extrude in one direction (default)
+                - "Two side" - Extrude on both sides
+                - "Symmetric" - Extrude symmetrically from the sketch plane
             reversed: Whether to reverse direction. Defaults to False.
             name: Pad feature name. Auto-generated if None.
             doc_name: Document containing the sketch. Uses active document if None.
@@ -315,7 +318,7 @@ try:
     pad = body.newObject("PartDesign::Pad", pad_name)
     pad.Profile = sketch
     pad.Length = {length}
-    pad.Symmetric = {symmetric}
+    pad.SideType = {side_type!r}
     pad.Reversed = {reversed}
 
     doc.recompute()

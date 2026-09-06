@@ -425,12 +425,14 @@ def main() -> None:
 
     # Run the server
     if config.transport == TransportType.HTTP:
+        # Configure FastMCP settings directly on the instance
+        # (mcp 1.27.0+ does not support host/port in run())
+        mcp.settings.host = "0.0.0.0"
+        mcp.settings.port = config.http_port
+        mcp.settings.log_level = config.log_level
+
         logger.info("Starting HTTP transport on port %d", config.http_port)
-        mcp.run(  # type: ignore[call-arg]
-            transport="streamable-http",
-            host="0.0.0.0",  # noqa: S104
-            port=config.http_port,
-        )
+        mcp.run(transport="streamable-http")
     else:
         logger.info("Starting stdio transport")
         logger.info(
