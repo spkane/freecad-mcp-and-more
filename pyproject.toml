@@ -54,7 +54,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "mcp>=1.25.0",
+    "mcp>=1.29.1,<2",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",
 ]
