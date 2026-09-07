@@ -10,13 +10,25 @@ Use explicit units on every length and angle; an untyped number is not a
 parameter. Use valid FreeCAD internal names: letters, digits, and
 underscores, starting with a letter or underscore.
 
-## Governing Versus Derived
+## Governing, Derived, Incidental
 
-A governing value is set directly and represents a real design choice. A
-derived value always carries an expression that references a governing value
-or another derived one; it never carries a copied number. If a derived
-dimension changes only because someone remembered to update it by hand, it is
-not actually derived — replace the copy with an expression.
+Which category a value falls into is decided in the design brief, not here.
+See `freecad://guide/brief`. This is what each one becomes in the document.
+
+A **governing** value is set directly and represents a real design choice. It
+becomes a variable in the `App::VarSet`.
+
+A **derived** value always carries an expression referencing a governing
+value or another derived one; it never carries a copied number. It becomes a
+variable too. If a derived dimension changes only because someone remembered
+to update it by hand, it is not actually derived — replace the copy with an
+expression.
+
+An **incidental** value is not a parameter and does not become a variable.
+Write it into the sketch or feature directly. A variable nobody will ever
+change is a control that does nothing when edited, which is worse than its
+absence because it invites someone to try. `validate_document` reports the
+variables that drive nothing.
 
 ## Binding Expressions
 

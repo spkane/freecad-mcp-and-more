@@ -133,7 +133,9 @@ class TestRequiredWorkflowParsing:
         from freecad_mcp.guidance import REQUIRED_WORKFLOW_SCALING_RULE
 
         assert REQUIRED_WORKFLOW_SCALING_RULE.startswith("Scale depth to the task.")
-        assert "floors below apply either way" in REQUIRED_WORKFLOW_SCALING_RULE
+        assert (
+            "non-negotiables below apply either way" in REQUIRED_WORKFLOW_SCALING_RULE
+        )
 
     def test_wrapped_lines_join_into_one_step(self):
         """A step wrapped across source lines is one step, not several."""
@@ -201,17 +203,21 @@ class TestDeliveryIsNotOptional:
 
         assert "Nothing changing at all" in variants
 
-    def test_the_workflow_step_no_longer_defers_to_a_brief(self):
+    def test_the_spine_carries_the_proof_as_a_floor(self):
+        """The detail lives in the guides; the floor stays always-in-context."""
         from freecad_mcp.guidance import (
             PARAMETRIC_PARTS_GUIDANCE,
             parse_required_workflow,
         )
 
+        spine = " ".join(PARAMETRIC_PARTS_GUIDANCE.split())
         _rule, steps = parse_required_workflow(PARAMETRIC_PARTS_GUIDANCE)
         proof = [step for step in steps if "Prove the model is parametric" in step]
 
         assert len(proof) == 1
-        assert "do not wait to be asked" in " ".join(proof[0].split())
+        assert "freecad://guide/variants" in proof[0]
+        assert "Governing parameters are changed and the model confirmed" in spine
+        assert "not known to be parametric" in spine
 
 
 class TestDesignBriefGate:
@@ -302,14 +308,78 @@ class TestDesignBriefGate:
             " ".join(load_guide("variants").split())
         )
 
-    def test_the_workflow_step_gates_on_the_brief(self):
+    def test_the_spine_gates_on_the_brief_and_points_at_the_guide(self):
+        """How to grill is guide detail; that you must is a floor."""
         from freecad_mcp.guidance import (
             PARAMETRIC_PARTS_GUIDANCE,
             parse_required_workflow,
         )
 
+        spine = " ".join(PARAMETRIC_PARTS_GUIDANCE.split())
         _rule, steps = parse_required_workflow(PARAMETRIC_PARTS_GUIDANCE)
-        gate = [s for s in steps if "thorough design brief" in s]
+        gate = [s for s in steps if "design brief" in s]
 
         assert len(gate) == 1
-        assert "grill the requester" in " ".join(gate[0].split())
+        assert "freecad://guide/brief" in gate[0]
+        assert "Modeling does not start without a thorough design brief" in spine
+
+
+class TestSpineAndGuidesAreOneWhole:
+    """The spine is always in context; the guides are fetched on demand.
+
+    So the spine carries the minimum that must be true before any guide is
+    read -- scope, conventions, the ordered steps, the floors -- and every
+    detail lives in exactly one guide with a pointer from the spine. Detail
+    restated in both places drifts apart, which is how the spine came to
+    describe `variants` as "isolated one-edit variant transactions" after
+    that guide had been rewritten.
+    """
+
+    @staticmethod
+    def _spine() -> str:
+        from freecad_mcp.guidance import PARAMETRIC_PARTS_GUIDANCE
+
+        return PARAMETRIC_PARTS_GUIDANCE
+
+    def test_every_pointer_resolves_to_a_real_topic(self):
+        import re
+
+        pointed = set(re.findall(r"freecad://guide/([a-z-]+)", self._spine()))
+
+        assert pointed <= set(GUIDE_TOPICS), pointed - set(GUIDE_TOPICS)
+
+    def test_every_topic_is_reachable_from_the_spine(self):
+        """A guide nothing points at is a guide nothing reads."""
+        import re
+
+        pointed = set(re.findall(r"freecad://guide/([a-z-]+)", self._spine()))
+
+        assert set(GUIDE_TOPICS) <= pointed, set(GUIDE_TOPICS) - pointed
+
+    def test_the_spine_does_not_restate_guide_detail(self):
+        """Each of these had two homes; the guide is the surviving one."""
+        spine = " ".join(self._spine().split())
+
+        # features.md owns the feature order and why fillets come last.
+        assert "topology-sensitive fillets and chamfers last" not in spine
+        # brief.md owns what a thorough brief must answer.
+        assert "one question at a time, in dependency order" not in spine
+        # delivery.md owns the handoff report's contents.
+        assert "Report tool versions, the ordered feature tree" not in spine
+
+    def test_each_guide_is_pointed_at_from_the_step_that_needs_it(self):
+        """A pointer in the index alone is too late to act on."""
+        from freecad_mcp.guidance import parse_required_workflow
+
+        _rule, steps = parse_required_workflow(self._spine())
+        in_steps = " ".join(steps)
+
+        for topic in GUIDE_TOPICS:
+            assert f"freecad://guide/{topic}" in in_steps, topic
+
+    def test_the_spine_stays_small_enough_to_always_carry(self):
+        """It costs context on every session, whether or not it is needed."""
+        spine = self._spine()
+
+        assert len(spine) < 5000, len(spine)
+        assert len(spine.splitlines()) < 100, len(spine.splitlines())

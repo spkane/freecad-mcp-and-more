@@ -25,6 +25,14 @@ above and a screenshot; a parametric family someone else will maintain needs
 the manifest and README as well. Produce what the work warrants, and say what
 you produced.
 
+## Save Before You Refine
+
+Save the FCStd and export the STEP the moment the shape first satisfies the
+request, before any refinement. An unsaved model is not a deliverable: a
+session that ends unexpectedly takes the whole tree with it, and a run that
+spends its remaining time polishing an unsaved model has produced nothing.
+Refine afterward and save again.
+
 ## Design Brief
 
 `design-brief.md` is part of the delivered set, not scratch. It records what
@@ -76,3 +84,17 @@ delivered one.
 
 Backup `.FCStd1` files are not deliverables; do not include them in the
 delivered set.
+
+## The Handoff Report
+
+Close by reporting, in words rather than by implication:
+
+- The saved FCStd path and the exported STEP path.
+- The images you actually inspected, and what each one shows.
+- The checks that ran, with their results. Not the checks you intended.
+- The governing parameters you changed to prove the model flexes, and what
+  moved.
+- The assumptions you took, and which of them are load-bearing.
+- Any topology-sensitive reference you could not avoid.
+- The limitations that remain.
+- Any departure from the server's stated conventions.
