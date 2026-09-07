@@ -83,3 +83,77 @@ class TestObjectDiagnostics:
         obj = SimpleNamespace(TypeId="Sketcher::SketchObject", getStatusString=_raise)
 
         assert self._diagnostics()(obj) == {}
+
+
+class TestUnusedVariables:
+    """A variable set is a contract: every entry should drive geometry."""
+
+    @staticmethod
+    def _unused():
+        return _workflow_namespace()["unused_variables"]
+
+    @staticmethod
+    def _varset(**values: object) -> SimpleNamespace:
+        varset = SimpleNamespace(
+            Name="Variables",
+            TypeId="App::VarSet",
+            PropertiesList=[*values, "Label", "Visibility", "ExpressionEngine"],
+            ExpressionEngine=[],
+        )
+        for name, value in values.items():
+            setattr(varset, name, value)
+        return varset
+
+    def test_reports_a_variable_nothing_references(self) -> None:
+        """`window_count` in the Stage G model drove no geometry at all.
+
+        The operator edited it expecting more windows and nothing moved.
+        """
+        varset = self._varset(tower_height="120.0 mm", window_count="4")
+        pad = SimpleNamespace(
+            Name="Pad",
+            TypeId="PartDesign::Pad",
+            ExpressionEngine=[("Length", "Variables.tower_height")],
+        )
+        document = SimpleNamespace(Objects=[varset, pad])
+
+        assert self._unused()(document) == [
+            {"varset": "Variables", "name": "window_count", "value": "4"}
+        ]
+
+    def test_says_nothing_when_every_variable_drives_something(self) -> None:
+        varset = self._varset(tower_height="120.0 mm", taper="0.25")
+        pad = SimpleNamespace(
+            Name="Pad",
+            TypeId="PartDesign::Pad",
+            ExpressionEngine=[
+                ("Length", "Variables.tower_height * (1 - Variables.taper)")
+            ],
+        )
+        document = SimpleNamespace(Objects=[varset, pad])
+
+        assert self._unused()(document) == []
+
+    def test_a_variable_used_only_inside_the_variable_set_counts(self) -> None:
+        """A governing value feeding a derived one is doing its job."""
+        varset = self._varset(base_diameter="64.0 mm", top_diameter="48.0 mm")
+        varset.ExpressionEngine = [("top_diameter", "base_diameter * 0.75")]
+        document = SimpleNamespace(Objects=[varset])
+
+        assert [entry["name"] for entry in self._unused()(document)] == ["top_diameter"]
+
+    def test_ignores_documents_without_a_variable_set(self) -> None:
+        pad = SimpleNamespace(Name="Pad", TypeId="PartDesign::Pad", ExpressionEngine=[])
+
+        assert self._unused()(SimpleNamespace(Objects=[pad])) == []
+
+    def test_never_reports_freecad_s_own_properties(self) -> None:
+        """Label and Visibility are not part of the parametric contract."""
+        varset = self._varset(tower_height="120.0 mm")
+        pad = SimpleNamespace(
+            Name="Pad",
+            TypeId="PartDesign::Pad",
+            ExpressionEngine=[("Length", "Variables.tower_height")],
+        )
+
+        assert self._unused()(SimpleNamespace(Objects=[varset, pad])) == []

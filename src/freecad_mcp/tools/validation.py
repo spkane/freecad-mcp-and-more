@@ -252,6 +252,9 @@ else:
                 - recompute_needed: Whether document needs recomputation
                 - solid_counts: Solid count for every shape-bearing object
                 - single_solid_violations: PartDesign Bodies without one solid
+                - unused_variables: Variable-set entries that no expression
+                  references, each with its varset, name and value. Editing
+                  one of these changes nothing in the model.
                 - summary: Human-readable summary of document health
 
         Example:
@@ -291,6 +294,7 @@ if doc is None:
         "recompute_needed": False,
         "solid_counts": {{}},
         "single_solid_violations": [],
+        "unused_variables": [],
         "summary": "No active document found"
     }}
 else:
@@ -376,9 +380,21 @@ else:
         if diagnosis:
             diagnostics[name] = diagnosis
 
+    # A variable that drives no geometry is a control that does nothing when
+    # edited. That is a defect in the parametric contract even when every
+    # shape is valid, so report it without failing the document.
+    dead_variables = unused_variables(doc)
+
     # Build summary
     if valid_count == total_objects and not objects_with_errors:
-        summary = f"Document '{{doc.Name}}' is healthy: all {{total_objects}} objects are valid"
+        summary = (
+            f"Document '{{doc.Name}}' is healthy: all {{total_objects}} objects are valid"
+        )
+        if dead_variables:
+            summary += (
+                f"; {{len(dead_variables)}} variables drive no geometry: "
+                + ", ".join(entry["name"] for entry in dead_variables)
+            )
     else:
         issues = []
         if invalid_objects:
@@ -391,6 +407,8 @@ else:
             issues.append(
                 f"{{len(single_solid_violations)}} single-solid violations"
             )
+        if dead_variables:
+            issues.append(f"{{len(dead_variables)}} variables drive no geometry")
         summary = f"Document '{{doc.Name}}' has issues: " + ", ".join(issues)
 
     overall_valid = (
@@ -403,6 +421,7 @@ else:
     _result_ = {{
         "valid": overall_valid,
         "doc_name": doc.Name,
+        "unused_variables": dead_variables,
         "total_objects": total_objects,
         "valid_objects": valid_count,
         "invalid_objects": invalid_objects,

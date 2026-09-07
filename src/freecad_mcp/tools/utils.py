@@ -7,6 +7,7 @@ responsibility, not a tool's.
 """
 
 WORKFLOW_HELPERS = r"""import hashlib
+import re
 
 feature_warnings = []
 
@@ -75,4 +76,52 @@ def object_diagnostics(candidate):
         if solver:
             diagnosis["sketch_solver"] = solver
     return diagnosis
+
+
+# Report variables that no expression in the document references.
+#
+# A variable set is the parametric contract: every entry is supposed to drive
+# geometry. One that drives nothing is an abandoned idea that still reads as a
+# control, and editing it changes nothing, which is worse than it not being
+# there because it invites the caller to try.
+#
+# Deliberately conservative. Any bare word matching the variable name, anywhere
+# in any expression, counts as a reference, so this under-reports rather than
+# accusing a variable that is genuinely in use.
+def unused_variables(document):
+    skip = {
+        "ExpressionEngine",
+        "Group",
+        "Label",
+        "Label2",
+        "Placement",
+        "Proxy",
+        "Visibility",
+    }
+    varsets = [
+        candidate
+        for candidate in document.Objects
+        if getattr(candidate, "TypeId", "") == "App::VarSet"
+    ]
+    if not varsets:
+        return []
+
+    referenced = set()
+    for candidate in document.Objects:
+        for _path, expression in getattr(candidate, "ExpressionEngine", []) or []:
+            referenced.update(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", str(expression)))
+
+    unused = []
+    for varset in varsets:
+        for name in varset.PropertiesList:
+            if name in skip or name in referenced:
+                continue
+            try:
+                value = str(getattr(varset, name))
+            except Exception:
+                value = ""
+            unused.append(
+                {"varset": varset.Name, "name": name, "value": value}
+            )
+    return unused
 """
