@@ -160,3 +160,55 @@ class TestRequiredWorkflowParsing:
 
         with pytest.raises(ValueError, match="no ordered steps found"):
             parse_required_workflow("# Title\n\n## Handoff\n\nNothing ordered here.\n")
+
+
+class TestDeliveryIsNotOptional:
+    """Proving a model is parametric must not depend on being asked.
+
+    A request normally arrives as a sentence of prose refined by conversation,
+    not a specification, so guidance gated on "when the brief asks for it"
+    never fires. Stage G delivered a model whose `window_count` variable drove
+    nothing, and nothing in the workflow would have caught that.
+    """
+
+    def test_delivery_does_not_wait_to_be_asked(self):
+        delivery = " ".join(load_guide("delivery").split())
+
+        assert "not optional and do not wait to be asked for" in delivery
+        assert "only when the brief asks for them" not in delivery
+
+    def test_delivery_requires_flexing_validating_and_looking(self):
+        delivery = load_guide("delivery")
+
+        assert "freecad://guide/variants" in delivery
+        assert "validate_document(require_single_solid=true)" in delivery
+        assert "unused_variables" in delivery
+        assert "freecad://guide/visual-evidence" in delivery
+
+    def test_variants_guide_leads_with_the_proof_not_the_task(self):
+        """It applies whether or not a request named any variants."""
+        variants = " ".join(load_guide("variants").split())
+
+        assert variants.startswith("# Proving The Model Is Parametric")
+        assert "whether or not anyone asked for variants" in variants
+
+    def test_variants_guide_names_the_inert_parameter_failure(self):
+        """A parameter that recomputes to identical geometry drives nothing.
+
+        `unused_variables` cannot see this one: something does reference it.
+        """
+        variants = " ".join(load_guide("variants").split())
+
+        assert "Nothing changing at all" in variants
+
+    def test_the_workflow_step_no_longer_defers_to_a_brief(self):
+        from freecad_mcp.guidance import (
+            PARAMETRIC_PARTS_GUIDANCE,
+            parse_required_workflow,
+        )
+
+        _rule, steps = parse_required_workflow(PARAMETRIC_PARTS_GUIDANCE)
+        proof = [step for step in steps if "Prove the model is parametric" in step]
+
+        assert len(proof) == 1
+        assert "do not wait to be asked" in " ".join(proof[0].split())

@@ -22,18 +22,20 @@ State any departure from these in your handoff.
 
 ## Required Workflow
 
-Scale depth to the task. A simple bracket needs a short brief and a few
+Scale depth to the task. A simple bracket needs a few notes and a few
 checks. A parametric family with variants needs the full protocol. The floors
 below apply either way.
 
 1. Classify the request: new part, edit of an existing document, parameter
    study, inspection, or repair.
 1. Load only the guide topics the task triggers. They are listed at the end.
-1. Write the brief before touching FreeCAD. Turn the request into explicit
+1. Pin the request down before touching FreeCAD. Turn it into explicit
    dimensions, units, coordinate frame, feature intent, governing parameters,
-   and validation targets. Read `freecad://guide/brief` whenever the request
-   arrives as prose, an image, or a drawing rather than an explicit spec.
-   State assumptions instead of asking, unless a choice is genuinely blocking.
+   and validation targets. Requests normally arrive as a sentence of prose, an
+   image, or a drawing rather than a specification; read
+   `freecad://guide/brief` for how to convert one. These notes are yours, not
+   a document the requester fills in. State assumptions instead of asking,
+   unless a choice is genuinely blocking and someone is there to answer.
 1. Plan the tree: parameters, datums, Body, and feature order. Primary
    additive form, then cuts, then patterns, then topology-sensitive fillets
    and chamfers. See `freecad://guide/features`.
@@ -50,12 +52,16 @@ below apply either way.
 1. Verify visually. Deterministic checks prove validity, not intent. Read
    `freecad://guide/visual-evidence` before capturing, and use
    `capture_feature_view` to look along each opening's own support normal.
-1. Save early. The moment the model first satisfies the brief, save the FCStd
+1. Save early. The moment the model first satisfies the request, save the FCStd
    and export the STEP, before any refinement.
 1. On a rejection, repair the smallest responsible input and rerun only that
    operation. See `freecad://guide/repair`.
-1. Produce the variants and evidence the brief actually asks for. See
-   `freecad://guide/variants` and `freecad://guide/delivery`.
+1. Prove the model is parametric before calling it done: change governing
+   parameters and confirm the model follows, validate the saved document, and
+   capture screenshots. These are not optional and do not wait to be asked
+   for. Scale the remaining artifacts -- manifest, README, STEP re-import --
+   to the task. See `freecad://guide/variants` and
+   `freecad://guide/delivery`.
 
 ## Handoff
 
@@ -73,7 +79,7 @@ These hold for every part, however small.
 - `validate_document(require_single_solid=true)` passes before any claim that
   the part is finished.
 - The FCStd is saved and the STEP exported as soon as the shape first
-  satisfies the brief, before any refinement. An unsaved model is not a
+  satisfies the request, before any refinement. An unsaved model is not a
   deliverable.
 - Every semantic opening or profile is seen along its own support normal,
   through `capture_feature_view`, before it is called correct.
@@ -90,7 +96,8 @@ These hold for every part, however small.
 
 Read these when their trigger applies.
 
-- `freecad://guide/brief` — turning prose, an image, or a drawing into a brief.
+- `freecad://guide/brief` — turning prose, an image, or a drawing into
+  working notes you can model from.
 - `freecad://guide/visual-evidence` — the capture protocol. Read before
   capturing evidence.
 - `freecad://guide/parameters` — variable sets, units, and expression binding.

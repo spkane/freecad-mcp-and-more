@@ -1,4 +1,43 @@
-# Parameter Variants As Isolated Transactions
+# Proving The Model Is Parametric
+
+Changing a parameter and watching the model follow is the only evidence that
+the parameter set is real. Do this before calling any model done, whether or
+not anyone asked for variants.
+
+## What To Change
+
+When a request names specific variants, build those. When it does not -- the
+usual case -- choose them yourself, spanning the kinds of parameter the model
+has rather than several of one kind:
+
+- A primary dimension that most of the model derives from.
+- A ratio or fraction, if the part has one.
+- A count that drives a pattern.
+- A value that positions a datum plane other features are built on.
+
+Three or four is usually enough. The point is coverage of parameter kinds, not
+exhaustiveness: `validate_document` already reports `unused_variables` across
+the whole set in one call, so the flex test does not need to prove each
+variable is wired -- it proves the tree survives being changed.
+
+Push each value far enough to be visible, staying inside what the part is
+supposed to support. A change too small to see proves nothing.
+
+## What Counts As A Failure
+
+- Invalid geometry, a changed solid count, or a feature that lost its
+  reference. This is the topology-sensitivity the feature order exists to
+  avoid, and a flex test is how it surfaces before a user finds it.
+- A protected control moving alongside the intended one, which means a
+  coupling the parameter set did not account for.
+- **Nothing changing at all.** A parameter that recomputes to identical
+  geometry is inert: something references it, so `unused_variables` will not
+  catch it, but it drives nothing that matters. This is the failure people
+  miss, because the model recomputes cleanly and looks correct.
+
+Record what you changed, what moved, and what did not. Then check the result
+visually as well as numerically -- see `freecad://guide/visual-evidence`. A
+variant that validates but no longer looks like the part is still a failure.
 
 ## One Variant, One Fresh Copy
 
@@ -32,5 +71,10 @@ account for.
 
 - The parent nominal file's hash.
 - The governing parameter name and the value it was set to.
-- The output file paths produced.
+- The output file paths produced, when the variant is a deliverable rather
+  than a check.
 - The check results for both the intended change and the protected controls.
+
+A flex test run purely as proof does not need its files kept. Validate it,
+record what moved, and close it without saving. Keep the files when the
+variants are themselves part of what you are delivering.
