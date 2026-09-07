@@ -1443,6 +1443,113 @@ class TestPartDesignTools:
         assert rendered["solver"]["message"] is None
 
     @pytest.mark.asyncio
+    async def test_a_healthy_sketch_reports_no_solver_message(
+        self, register_tools, mock_bridge
+    ):
+        """`Valid` is a clean bill of health, not something to report.
+
+        The message field exists to carry a diagnosis. Filling it with
+        FreeCAD's word for "fine" makes a caller read it as a problem.
+        """
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={},
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        get_info = register_tools["get_sketch_info"]
+        await get_info(sketch_name="Sketch")
+        code = mock_bridge.execute_python.call_args.args[0]
+
+        sketch = _healthy_sketch()
+        sketch._status = "Valid"
+        assert _run_generated_code(code, sketch)["solver"]["message"] is None
+
+    @pytest.mark.asyncio
+    async def test_a_rejected_solve_names_the_constraints_it_rejected(
+        self, register_tools, mock_bridge
+    ):
+        """SOLVER_CONFLICT carried a status code and nothing else."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={},
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        create = register_tools["create_constrained_sketch"]
+        await create(
+            body_name="Body",
+            sketch_name="Sketch",
+            entities=[SketchLine(id="base", start=(0, 0), end=(20, 0))],
+        )
+        code = mock_bridge.execute_python.call_args.args[0]
+
+        assert "RedundantConstraints" in code
+        assert "ConflictingConstraints" in code
+        assert "MalformedConstraints" in code
+        assert "FreeCAD says: " in code
+
+    @pytest.mark.asyncio
+    async def test_an_under_constrained_sketch_is_not_called_a_conflict(
+        self, register_tools, mock_bridge
+    ):
+        """Stage G's call 21 reported SOLVER_CONFLICT for 8 free degrees.
+
+        Nothing was in conflict, so the code pointed the caller at the wrong
+        repair entirely: it says to delete constraints, and deleting makes an
+        under-constrained sketch worse.
+        """
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={},
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        create = register_tools["create_constrained_sketch"]
+        await create(
+            body_name="Body",
+            sketch_name="Sketch",
+            entities=[SketchLine(id="base", start=(0, 0), end=(20, 0))],
+        )
+        code = mock_bridge.execute_python.call_args.args[0]
+
+        assert "UNDER_CONSTRAINED: Sketch is not fully constrained" in code
+        assert "SOLVER_CONFLICT: Sketch is not fully constrained" not in code
+
+    def test_under_constrained_is_a_known_error_category(self):
+        """An unknown category degrades to BRIDGE_ERROR and loses its meaning."""
+        from freecad_mcp.tools.workflow_results import bridge_workflow_error
+
+        error = bridge_workflow_error(
+            "UNDER_CONSTRAINED: Sketch is not fully constrained: 8 degrees",
+            "fallback",
+        )
+
+        assert error.payload.category == "UNDER_CONSTRAINED"
+
+    def test_a_cut_that_removes_nothing_says_why(self):
+        """ "Removed no material" is the symptom, not the cause."""
+        from freecad_mcp.tools.partdesign import _feature_validation_code
+
+        code = _feature_validation_code("feature", require_material_removal=True)
+
+        assert "does not overlap the body" in code
+        assert "cut ran away" in code
+        assert "type='ThroughAll'" in code
+
+    @pytest.mark.asyncio
     async def test_add_sketch_constraint_reports_the_conflict_it_caused(
         self, register_tools, mock_bridge
     ):

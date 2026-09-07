@@ -131,6 +131,7 @@ ToolErrorCategory = Literal[
     "STALE_REVISION",
     "TRANSACTION_CONFLICT",
     "SOLVER_CONFLICT",
+    "UNDER_CONSTRAINED",
     "VALIDATION_FAILED",
     "BRIDGE_ERROR",
 ]
@@ -199,6 +200,7 @@ def bridge_workflow_error(
         "STALE_REVISION",
         "TRANSACTION_CONFLICT",
         "SOLVER_CONFLICT",
+        "UNDER_CONSTRAINED",
         "VALIDATION_FAILED",
         "NOT_FOUND",
         "INVALID_INPUT",

@@ -382,10 +382,39 @@ shape = feature_shape
 removed_volume = input_volume - float(shape.Volume)
 volume_tolerance = max(1e-9, abs(input_volume) * 1e-9)
 if removed_volume <= volume_tolerance:
+    # "Removed nothing" is the symptom. The two causes that account for
+    # nearly every case are distinguishable from the bounding boxes, so
+    # measure them rather than making the caller retry blind.
+    _why = ""
+    try:
+        _profile_box = sketch.Shape.BoundBox
+        _body_box = input_shape.BoundBox
+        if not _profile_box.intersect(_body_box):
+            _why = (
+                ". The sketch profile does not overlap the body: the profile "
+                "spans (%.4g, %.4g, %.4g) to (%.4g, %.4g, %.4g) and the body "
+                "spans (%.4g, %.4g, %.4g) to (%.4g, %.4g, %.4g). Move the "
+                "sketch onto the material before cutting."
+                % (
+                    _profile_box.XMin, _profile_box.YMin, _profile_box.ZMin,
+                    _profile_box.XMax, _profile_box.YMax, _profile_box.ZMax,
+                    _body_box.XMin, _body_box.YMin, _body_box.ZMin,
+                    _body_box.XMax, _body_box.YMax, _body_box.ZMax,
+                )
+            )
+        else:
+            _why = (
+                ". The profile does overlap the body, so the cut ran away "
+                "from the material or stopped short of it: set Reversed to "
+                "cut the other way, increase the depth, or use "
+                "type='ThroughAll'."
+            )
+    except Exception:
+        pass
     raise RuntimeError(
         "VALIDATION_FAILED: Subtractive feature removed no material "
-        "(input volume %.12g, result volume %.12g)"
-        % (input_volume, float(shape.Volume))
+        "(input volume %.12g, result volume %.12g)%s"
+        % (input_volume, float(shape.Volume), _why)
     )
 """
 
@@ -749,7 +778,7 @@ except Exception:
 solver["message"] = (
     _status_text
     if _status_text
-    and _status_text not in ("", "Up-to-date", "Touched", "Untouched")
+    and _status_text not in ("", "Valid", "Up-to-date", "Touched", "Untouched")
     else None
 )
 """
@@ -1367,17 +1396,45 @@ degrees_of_freedom = (
 )
 fully_constrained = bool(sketch.FullyConstrained)
 if reject_solver_errors and solver_status != 0:
+    # A bare status code sends the caller deleting constraints by guess.
+    # The solver already knows which ones it rejected.
+    _at_fault = []
+    for _label, _attribute in (
+        ("redundant", "RedundantConstraints"),
+        ("partially redundant", "PartiallyRedundantConstraints"),
+        ("conflicting", "ConflictingConstraints"),
+        ("malformed", "MalformedConstraints"),
+    ):
+        try:
+            _indices = [int(_i) for _i in getattr(sketch, _attribute, [])]
+        except Exception:
+            _indices = []
+        if _indices:
+            _at_fault.append("%s %s" % (_label, _indices))
+    try:
+        _sketch_status = str(sketch.getStatusString())
+    except Exception:
+        _sketch_status = ""
     raise RuntimeError(
-        "SOLVER_CONFLICT: Sketch solver reported an error: %d"
-        % solver_status
+        "SOLVER_CONFLICT: Sketch solver reported an error: %d%s%s"
+        % (
+            solver_status,
+            ("; " + ", ".join(_at_fault)) if _at_fault else "",
+            ("; FreeCAD says: " + _sketch_status) if _sketch_status else "",
+        )
     )
 
 wires = list(getattr(sketch.Shape, "Wires", []))
 closed_profiles = sum(1 for wire in wires if wire.isClosed())
 open_profiles = len(wires) - closed_profiles
 if require_fully_constrained and not fully_constrained:
+    # Not a conflict: nothing is fighting, the sketch is simply short of
+    # constraints. Calling it SOLVER_CONFLICT sent a caller hunting for
+    # conflicting constraints that did not exist.
     raise RuntimeError(
-        "SOLVER_CONFLICT: Sketch is not fully constrained: %d degrees of freedom"
+        "UNDER_CONSTRAINED: Sketch is not fully constrained: "
+        "%d degrees of freedom remain. Add dimensions or geometric "
+        "constraints until the count reaches zero; nothing is in conflict."
         % degrees_of_freedom
     )
 if require_closed_profiles and (not wires or open_profiles):

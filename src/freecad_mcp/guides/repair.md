@@ -7,6 +7,16 @@ reported failing inputs, fix the smallest responsible one, and rerun only that
 operation — do not resubmit the whole batch unchanged, and do not add a new
 feature to work around the rejection.
 
+`UNDER_CONSTRAINED` means the sketch solved without conflict but still has
+degrees of freedom. Nothing is fighting: add dimensions or geometric
+constraints until the count reaches zero. Do not delete constraints for this
+one -- deleting makes it worse.
+
+`SOLVER_CONFLICT` means the solver rejected the sketch. The message carries
+the indices it rejected, grouped as redundant, partially redundant,
+conflicting or malformed, along with FreeCAD's own description. Delete or
+relax one of the named constraints; do not guess at others.
+
 `STALE_REVISION` means the `document_ref` revision you carried is no longer
 current. This is the normal consequence of a preceding rejected batch or any
 mutation you did not track: re-read current state with a bounded
