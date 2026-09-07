@@ -712,6 +712,49 @@ def _validate_granular_dimensional_references(
             raise WorkflowToolError("INVALID_INPUT", msg)
 
 
+# Embedded verbatim into generated code, so its braces are literal. A sketch
+# mutation that leaves the solver unhappy has to say so in its own response:
+# reporting only the new index sends the caller hunting with get_sketch_info,
+# which is how both benchmark runs ended up deleting constraints by guess.
+_SKETCH_SOLVER_REPORT = """
+solver = {
+    "status": int(sketch.solve()) if hasattr(sketch, "solve") else None,
+    "fully_constrained": (
+        bool(sketch.FullyConstrained)
+        if hasattr(sketch, "FullyConstrained")
+        else None
+    ),
+    "degrees_of_freedom": (
+        int(sketch.DoF)
+        if hasattr(sketch, "DoF")
+        else int(sketch.getLastDoF())
+        if hasattr(sketch, "getLastDoF")
+        else None
+    ),
+}
+for _key, _attribute in (
+    ("redundant_constraints", "RedundantConstraints"),
+    ("partially_redundant_constraints", "PartiallyRedundantConstraints"),
+    ("conflicting_constraints", "ConflictingConstraints"),
+    ("malformed_constraints", "MalformedConstraints"),
+):
+    try:
+        solver[_key] = [int(_index) for _index in getattr(sketch, _attribute, [])]
+    except Exception:
+        solver[_key] = []
+try:
+    _status_text = str(sketch.getStatusString())
+except Exception:
+    _status_text = ""
+solver["message"] = (
+    _status_text
+    if _status_text
+    and _status_text not in ("", "Up-to-date", "Touched", "Untouched")
+    else None
+)
+"""
+
+
 def register_partdesign_tools(
     mcp: Any, get_bridge: Callable[[], Awaitable[Any]]
 ) -> None:
@@ -2899,6 +2942,10 @@ _result_ = {{
             Dictionary with constraint info:
                 - constraint_index: Index of the added constraint
                 - constraint_count: Total constraint count
+                - solver: Solver state after the addition, including the
+                  indices of any redundant, conflicting or malformed
+                  constraints and FreeCAD's own message. A constraint that
+                  breaks the sketch reports it here.
         """
         _validate_granular_constraint_basics(
             sketch_name, constraint_type, point1, point2, point3
@@ -3002,9 +3049,11 @@ else:
 
 idx = sketch.addConstraint(constraint)
 doc.recompute()
+{_SKETCH_SOLVER_REPORT}
 _result_ = {{
     "constraint_index": idx,
     "constraint_count": sketch.ConstraintCount,
+    "solver": solver,
 }}
 """
         result = await bridge.execute_python(code, transaction="Add Sketch Constraint")
@@ -3029,6 +3078,9 @@ _result_ = {{
             Dictionary with result:
                 - success: Whether the deletion succeeded
                 - geometry_count: Remaining geometry count
+                - solver: Solver state after the deletion, including the
+                  indices of any redundant, conflicting or malformed
+                  constraints and FreeCAD's own message
         """
         bridge = await get_bridge()
 
@@ -3041,10 +3093,11 @@ if sketch is None:
 
 sketch.delGeometry({geometry_index})
 doc.recompute()
-
+{_SKETCH_SOLVER_REPORT}
 _result_ = {{
     "success": True,
     "geometry_count": sketch.GeometryCount,
+    "solver": solver,
 }}
 """
         result = await bridge.execute_python(code, transaction="Delete Sketch Geometry")
@@ -3069,6 +3122,9 @@ _result_ = {{
             Dictionary with result:
                 - success: Whether the deletion succeeded
                 - constraint_count: Remaining constraint count
+                - solver: Solver state after the deletion, including the
+                  indices of any redundant, conflicting or malformed
+                  constraints and FreeCAD's own message
         """
         bridge = await get_bridge()
 
@@ -3081,10 +3137,11 @@ if sketch is None:
 
 sketch.delConstraint({constraint_index})
 doc.recompute()
-
+{_SKETCH_SOLVER_REPORT}
 _result_ = {{
     "success": True,
     "constraint_count": sketch.ConstraintCount,
+    "solver": solver,
 }}
 """
         result = await bridge.execute_python(
@@ -3203,45 +3260,7 @@ expressions = {{
     path: str(expression)
     for path, expression in getattr(sketch, "ExpressionEngine", [])
 }}
-solver_status = int(sketch.solve()) if hasattr(sketch, "solve") else None
-degrees_of_freedom = (
-    int(sketch.DoF)
-    if hasattr(sketch, "DoF")
-    else int(sketch.getLastDoF())
-    if hasattr(sketch, "getLastDoF")
-    else None
-)
-fully_constrained = (
-    bool(sketch.FullyConstrained)
-    if hasattr(sketch, "FullyConstrained")
-    else None
-)
-
-# The solver knows exactly which constraints are at fault. Without these the
-# caller sees only a status code and has to delete constraints by guess.
-solver_diagnostics = {{}}
-for _key, _attribute in (
-    ("redundant_constraints", "RedundantConstraints"),
-    ("partially_redundant_constraints", "PartiallyRedundantConstraints"),
-    ("conflicting_constraints", "ConflictingConstraints"),
-    ("malformed_constraints", "MalformedConstraints"),
-):
-    try:
-        solver_diagnostics[_key] = [
-            int(_index) for _index in getattr(sketch, _attribute, [])
-        ]
-    except Exception:
-        solver_diagnostics[_key] = []
-
-try:
-    _status_text = str(sketch.getStatusString())
-except Exception:
-    _status_text = ""
-solver_message = (
-    _status_text
-    if _status_text and _status_text not in ("", "Up-to-date", "Touched", "Untouched")
-    else None
-)
+{_SKETCH_SOLVER_REPORT}
 
 _result_ = {{
     "name": sketch.Name,
@@ -3252,11 +3271,10 @@ _result_ = {{
     "geometry_count": sketch.GeometryCount,
     "constraint_count": sketch.ConstraintCount,
     "external_geometry_count": sum(len(_s) for _, _s in sketch.ExternalGeometry),
-    "fully_constrained": fully_constrained,
-    "solver_status": solver_status,
-    "solver_message": solver_message,
-    "degrees_of_freedom": degrees_of_freedom,
-    **solver_diagnostics,
+    "fully_constrained": solver["fully_constrained"],
+    "solver_status": solver["status"],
+    "degrees_of_freedom": solver["degrees_of_freedom"],
+    "solver": solver,
 }}
 """
         result = await bridge.execute_python(code, transaction=None)

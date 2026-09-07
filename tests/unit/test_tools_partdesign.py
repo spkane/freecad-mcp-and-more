@@ -1,5 +1,6 @@
 """Tests for PartDesign tools module."""
 
+import sys
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -52,6 +53,8 @@ def _conflicted_sketch() -> _StubSketch:
     return _StubSketch(
         Name="DoorWindows",
         Label="DoorWindows",
+        Geometry=[MagicMock() for _ in range(16)],
+        GeometryCount=16,
         ConstraintCount=47,
         DoF=6,
         FullyConstrained=False,
@@ -84,6 +87,9 @@ def _run_generated_code(code: str, sketch: _StubSketch) -> dict[str, Any]:
 
     Asserting on substrings only proves a template mentions something. This
     runs it, which is the only way to prove what a caller receives.
+
+    `Sketcher` is only available inside FreeCAD's interpreter, so a stub
+    stands in for the duration of the call.
     """
     document = MagicMock()
     document.getObject.return_value = sketch
@@ -92,7 +98,15 @@ def _run_generated_code(code: str, sketch: _StubSketch) -> dict[str, Any]:
     freecad.getDocument.return_value = document
 
     namespace: dict[str, Any] = {"FreeCAD": freecad}
-    exec(compile(code, "<generated>", "exec"), namespace)  # noqa: S102
+    replaced = sys.modules.get("Sketcher")
+    sys.modules["Sketcher"] = MagicMock()
+    try:
+        exec(compile(code, "<generated>", "exec"), namespace)  # noqa: S102
+    finally:
+        if replaced is None:
+            del sys.modules["Sketcher"]
+        else:
+            sys.modules["Sketcher"] = replaced
     return namespace["_result_"]
 
 
@@ -1395,11 +1409,12 @@ class TestPartDesignTools:
         rendered = _run_generated_code(code, _conflicted_sketch())
 
         assert rendered["solver_status"] == -3
-        assert rendered["conflicting_constraints"] == [11, 12, 15, 37, 39, 47]
-        assert rendered["redundant_constraints"] == [7]
-        assert rendered["partially_redundant_constraints"] == []
-        assert rendered["malformed_constraints"] == []
-        assert "conflicting constraints" in rendered["solver_message"]
+        solver = rendered["solver"]
+        assert solver["conflicting_constraints"] == [11, 12, 15, 37, 39, 47]
+        assert solver["redundant_constraints"] == [7]
+        assert solver["partially_redundant_constraints"] == []
+        assert solver["malformed_constraints"] == []
+        assert "conflicting constraints" in solver["message"]
 
     @pytest.mark.asyncio
     async def test_get_sketch_info_omits_the_message_for_a_healthy_sketch(
@@ -1423,9 +1438,90 @@ class TestPartDesignTools:
         rendered = _run_generated_code(code, _healthy_sketch())
 
         assert rendered["solver_status"] == 0
-        assert rendered["conflicting_constraints"] == []
-        assert rendered["redundant_constraints"] == []
-        assert rendered["solver_message"] is None
+        assert rendered["solver"]["conflicting_constraints"] == []
+        assert rendered["solver"]["redundant_constraints"] == []
+        assert rendered["solver"]["message"] is None
+
+    @pytest.mark.asyncio
+    async def test_add_sketch_constraint_reports_the_conflict_it_caused(
+        self, register_tools, mock_bridge
+    ):
+        """The call that breaks the sketch has to be the one that says so.
+
+        Stage G's DoorWindows sketch solved cleanly after
+        `create_constrained_sketch`, which reports solver state. One later
+        `add_sketch_constraint` broke it and returned only the new index, so
+        the model learned nothing until it inspected the sketch separately,
+        by which point it could no longer tell which call was responsible.
+        """
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={},
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        add_constraint = register_tools["add_sketch_constraint"]
+        await add_constraint(
+            sketch_name="DoorWindows",
+            constraint_type="DistanceY",
+            geometry1=6,
+            point1=1,
+            value=65.0,
+        )
+        code = mock_bridge.execute_python.call_args.args[0]
+
+        sketch = _conflicted_sketch()
+        sketch.addConstraint = lambda _constraint: 47  # type: ignore[attr-defined]
+        rendered = _run_generated_code(code, sketch)
+
+        assert rendered["constraint_index"] == 47
+        assert rendered["solver"]["status"] == -3
+        assert rendered["solver"]["conflicting_constraints"] == [
+            11,
+            12,
+            15,
+            37,
+            39,
+            47,
+        ]
+        assert "conflicting constraints" in rendered["solver"]["message"]
+
+    @pytest.mark.asyncio
+    async def test_delete_sketch_constraint_reports_what_is_left(
+        self, register_tools, mock_bridge
+    ):
+        """Deleting one of several conflicting constraints may not fix it."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={},
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        delete_constraint = register_tools["delete_sketch_constraint"]
+        await delete_constraint(sketch_name="DoorWindows", constraint_index=35)
+        code = mock_bridge.execute_python.call_args.args[0]
+
+        sketch = _conflicted_sketch()
+        sketch.delConstraint = lambda _index: None  # type: ignore[attr-defined]
+        rendered = _run_generated_code(code, sketch)
+
+        assert rendered["success"] is True
+        assert rendered["solver"]["conflicting_constraints"] == [
+            11,
+            12,
+            15,
+            37,
+            39,
+            47,
+        ]
 
     @pytest.mark.asyncio
     async def test_toggle_construction(self, register_tools, mock_bridge):
