@@ -19,6 +19,83 @@ from freecad_mcp.tools.partdesign import (
 from freecad_mcp.tools.workflow_results import ConstrainedSketchResult
 
 
+class _StubSketch:
+    """Enough of `Sketcher::SketchObject` to run generated code against."""
+
+    TypeId = "Sketcher::SketchObject"
+
+    def __init__(self, **attributes: Any) -> None:
+        self.Name = "StubSketch"
+        self.Label = "StubSketch"
+        self.Geometry: list[Any] = []
+        self.Constraints: list[Any] = []
+        self.ExpressionEngine: list[Any] = []
+        self.ExternalGeometry: list[Any] = []
+        self.GeometryCount = 0
+        self.ConstraintCount = 0
+        self.DoF = 0
+        self.FullyConstrained = True
+        self._status = ""
+        self._solve = 0
+        for key, value in attributes.items():
+            setattr(self, key, value)
+
+    def solve(self) -> int:
+        return self._solve
+
+    def getStatusString(self) -> str:
+        return self._status
+
+
+def _conflicted_sketch() -> _StubSketch:
+    """The DoorWindows sketch as FreeCAD actually reported it during Stage G."""
+    return _StubSketch(
+        Name="DoorWindows",
+        Label="DoorWindows",
+        ConstraintCount=47,
+        DoF=6,
+        FullyConstrained=False,
+        RedundantConstraints=[7],
+        PartiallyRedundantConstraints=[],
+        ConflictingConstraints=[11, 12, 15, 37, 39, 47],
+        MalformedConstraints=[],
+        _solve=-3,
+        _status=(
+            "Sketch with conflicting constraints\n"
+            "Remove at least one of the following conflicting constraints:11\n"
+            ", 12, 15, 37, 39, 47\n"
+        ),
+    )
+
+
+def _healthy_sketch() -> _StubSketch:
+    return _StubSketch(
+        RedundantConstraints=[],
+        PartiallyRedundantConstraints=[],
+        ConflictingConstraints=[],
+        MalformedConstraints=[],
+        _solve=0,
+        _status="Up-to-date",
+    )
+
+
+def _run_generated_code(code: str, sketch: _StubSketch) -> dict[str, Any]:
+    """Execute generated code against a stub document and return `_result_`.
+
+    Asserting on substrings only proves a template mentions something. This
+    runs it, which is the only way to prove what a caller receives.
+    """
+    document = MagicMock()
+    document.getObject.return_value = sketch
+    freecad = MagicMock()
+    freecad.ActiveDocument = document
+    freecad.getDocument.return_value = document
+
+    namespace: dict[str, Any] = {"FreeCAD": freecad}
+    exec(compile(code, "<generated>", "exec"), namespace)  # noqa: S102
+    return namespace["_result_"]
+
+
 class TestPartDesignTools:
     """Tests for PartDesign tools."""
 
@@ -1289,6 +1366,66 @@ class TestPartDesignTools:
         assert "driving_error" not in code
         assert 'hasattr(sketch, "DoF")' in code
         assert "sketch.getLastDoF()" in code
+
+    @pytest.mark.asyncio
+    async def test_get_sketch_info_reports_solver_diagnostics(
+        self, register_tools, mock_bridge
+    ):
+        """A broken sketch must name the constraints, not just fail to solve.
+
+        FreeCAD knows which constraint indices conflict and says so in
+        `ConflictingConstraints` and `getStatusString()`. Returning a bare
+        `solver_status` integer leaves a caller deleting constraints by guess,
+        which is what the Stage F and Stage G benchmark runs both did.
+        """
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={},
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        get_info = register_tools["get_sketch_info"]
+        await get_info(sketch_name="DoorWindows")
+        code = mock_bridge.execute_python.call_args.args[0]
+
+        rendered = _run_generated_code(code, _conflicted_sketch())
+
+        assert rendered["solver_status"] == -3
+        assert rendered["conflicting_constraints"] == [11, 12, 15, 37, 39, 47]
+        assert rendered["redundant_constraints"] == [7]
+        assert rendered["partially_redundant_constraints"] == []
+        assert rendered["malformed_constraints"] == []
+        assert "conflicting constraints" in rendered["solver_message"]
+
+    @pytest.mark.asyncio
+    async def test_get_sketch_info_omits_the_message_for_a_healthy_sketch(
+        self, register_tools, mock_bridge
+    ):
+        """A sketch that solved has nothing to report; say so with empty lists."""
+        mock_bridge.execute_python = AsyncMock(
+            return_value=ExecutionResult(
+                success=True,
+                result={},
+                stdout="",
+                stderr="",
+                execution_time_ms=10.0,
+            )
+        )
+
+        get_info = register_tools["get_sketch_info"]
+        await get_info(sketch_name="Sketch")
+        code = mock_bridge.execute_python.call_args.args[0]
+
+        rendered = _run_generated_code(code, _healthy_sketch())
+
+        assert rendered["solver_status"] == 0
+        assert rendered["conflicting_constraints"] == []
+        assert rendered["redundant_constraints"] == []
+        assert rendered["solver_message"] is None
 
     @pytest.mark.asyncio
     async def test_toggle_construction(self, register_tools, mock_bridge):

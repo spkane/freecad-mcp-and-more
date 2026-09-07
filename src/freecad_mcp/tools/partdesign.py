@@ -3116,7 +3116,13 @@ _result_ = {{
                 - external_geometry_count: Number of external geometry references
                 - fully_constrained: Whether sketch is fully constrained
                 - solver_status: Result of the latest solve
+                - solver_message: FreeCAD's own description of a failed solve,
+                  or None when the sketch solved cleanly
                 - degrees_of_freedom: Remaining solver degrees of freedom
+                - redundant_constraints: Indices the solver found redundant
+                - partially_redundant_constraints: Indices partially redundant
+                - conflicting_constraints: Indices the solver found conflicting
+                - malformed_constraints: Indices the solver found malformed
         """
         bridge = await get_bridge()
 
@@ -3211,6 +3217,32 @@ fully_constrained = (
     else None
 )
 
+# The solver knows exactly which constraints are at fault. Without these the
+# caller sees only a status code and has to delete constraints by guess.
+solver_diagnostics = {{}}
+for _key, _attribute in (
+    ("redundant_constraints", "RedundantConstraints"),
+    ("partially_redundant_constraints", "PartiallyRedundantConstraints"),
+    ("conflicting_constraints", "ConflictingConstraints"),
+    ("malformed_constraints", "MalformedConstraints"),
+):
+    try:
+        solver_diagnostics[_key] = [
+            int(_index) for _index in getattr(sketch, _attribute, [])
+        ]
+    except Exception:
+        solver_diagnostics[_key] = []
+
+try:
+    _status_text = str(sketch.getStatusString())
+except Exception:
+    _status_text = ""
+solver_message = (
+    _status_text
+    if _status_text and _status_text not in ("", "Up-to-date", "Touched", "Untouched")
+    else None
+)
+
 _result_ = {{
     "name": sketch.Name,
     "label": sketch.Label,
@@ -3222,7 +3254,9 @@ _result_ = {{
     "external_geometry_count": sum(len(_s) for _, _s in sketch.ExternalGeometry),
     "fully_constrained": fully_constrained,
     "solver_status": solver_status,
+    "solver_message": solver_message,
     "degrees_of_freedom": degrees_of_freedom,
+    **solver_diagnostics,
 }}
 """
         result = await bridge.execute_python(code, transaction=None)
