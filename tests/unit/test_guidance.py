@@ -212,3 +212,104 @@ class TestDeliveryIsNotOptional:
 
         assert len(proof) == 1
         assert "do not wait to be asked" in " ".join(proof[0].split())
+
+
+class TestDesignBriefGate:
+    """Modeling does not start without a thorough brief.
+
+    Either one was supplied and covers the sections, or the requester is
+    grilled until it does. Stage G shows the cost of skipping this: the
+    delivered model carried a `window_count` variable that drove nothing,
+    because whether the count was meant to flex was never decided before the
+    feature tree was built.
+    """
+
+    @staticmethod
+    def _brief() -> str:
+        return " ".join(load_guide("brief").split())
+
+    def test_the_gate_is_stated_as_a_gate(self):
+        assert "Modeling does not start without a thorough design brief" in (
+            self._brief()
+        )
+
+    def test_both_cases_are_covered(self):
+        """A supplied brief is checked; a missing one is grilled for."""
+        brief = self._brief()
+
+        assert "A brief was supplied" in brief
+        assert "Grill the requester until there is one" in brief
+
+    def test_the_brief_is_a_written_artifact(self):
+        brief = self._brief()
+
+        assert "design-brief.md" in brief
+        assert "before the first modeling call" in brief
+        assert "design-brief.md" in " ".join(load_guide("delivery").split())
+
+    def test_questions_are_asked_one_at_a_time(self):
+        """A batch of questions destroys the dependency ordering."""
+        brief = self._brief()
+
+        assert "One question at a time" in brief
+        assert "Ask them together, not one at a time" not in brief
+
+    def test_every_question_carries_a_recommendation(self):
+        assert "recommended answer with every question" in self._brief()
+
+    def test_facts_are_looked_up_rather_than_asked(self):
+        """Asking what a tool call would answer wastes the requester's time."""
+        brief = self._brief()
+
+        assert "Look up facts; ask only decisions" in brief
+        assert "get_connection_status" in brief
+        assert "query_objects" in brief
+
+    def test_the_parametric_contract_has_three_categories(self):
+        brief = self._brief()
+
+        assert "**Governing**" in brief
+        assert "**Derived**" in brief
+        assert "**Incidental**" in brief
+
+    def test_parametric_intent_decides_construction_not_naming(self):
+        """A governing count needs a pattern; an incidental one does not.
+
+        Asked after the tree is built, the answer arrives too late to act on.
+        """
+        brief = self._brief()
+
+        assert "decides construction, not naming" in brief
+        assert "A governing count needs a pattern feature" in brief
+
+    def test_the_contract_is_settled_before_features(self):
+        """Stage 3 before stage 4: the answer changes what you build."""
+        brief = self._brief()
+        contract = brief.index("**The parametric contract.**")
+        features = brief.index("**Semantic features.**")
+
+        assert contract < features
+
+    def test_an_unattended_session_still_writes_the_brief(self):
+        """No requester lowers who fills the gaps, not the bar."""
+        brief = self._brief()
+
+        assert "does not lower the bar" in brief
+        assert "load-bearing" in brief
+
+    def test_the_brief_supplies_the_flex_test_ranges(self):
+        assert "recorded in the design brief are these values" in (
+            " ".join(load_guide("variants").split())
+        )
+
+    def test_the_workflow_step_gates_on_the_brief(self):
+        from freecad_mcp.guidance import (
+            PARAMETRIC_PARTS_GUIDANCE,
+            parse_required_workflow,
+        )
+
+        _rule, steps = parse_required_workflow(PARAMETRIC_PARTS_GUIDANCE)
+        gate = [s for s in steps if "thorough design brief" in s]
+
+        assert len(gate) == 1
+        assert "grill the requester" in " ".join(gate[0].split())

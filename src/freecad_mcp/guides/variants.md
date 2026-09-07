@@ -23,6 +23,10 @@ variable is wired -- it proves the tree survives being changed.
 Push each value far enough to be visible, staying inside what the part is
 supposed to support. A change too small to see proves nothing.
 
+The ranges recorded in the design brief are these values. If the brief says a
+governing dimension must work from 80 mm to 200 mm, test both ends rather
+than nudging it by a millimetre. See `freecad://guide/brief`.
+
 ## What Counts As A Failure
 
 - Invalid geometry, a changed solid count, or a feature that lost its

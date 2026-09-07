@@ -29,13 +29,14 @@ below apply either way.
 1. Classify the request: new part, edit of an existing document, parameter
    study, inspection, or repair.
 1. Load only the guide topics the task triggers. They are listed at the end.
-1. Pin the request down before touching FreeCAD. Turn it into explicit
-   dimensions, units, coordinate frame, feature intent, governing parameters,
-   and validation targets. Requests normally arrive as a sentence of prose, an
-   image, or a drawing rather than a specification; read
-   `freecad://guide/brief` for how to convert one. These notes are yours, not
-   a document the requester fills in. State assumptions instead of asking,
-   unless a choice is genuinely blocking and someone is there to answer.
+1. Do not start modeling without a thorough design brief. If one was
+   supplied, check it covers function and orientation, units, coordinate
+   frame, what the part fits, which values govern and over what range, the
+   semantic features, and the validation targets. If it does not, or if no
+   brief was supplied, grill the requester until it does -- one question at a
+   time, in dependency order, each carrying your recommended answer. Write
+   `design-brief.md` before the first modeling call. Read
+   `freecad://guide/brief`.
 1. Plan the tree: parameters, datums, Body, and feature order. Primary
    additive form, then cuts, then patterns, then topology-sensitive fillets
    and chamfers. See `freecad://guide/features`.
@@ -96,8 +97,8 @@ These hold for every part, however small.
 
 Read these when their trigger applies.
 
-- `freecad://guide/brief` — turning prose, an image, or a drawing into
-  working notes you can model from.
+- `freecad://guide/brief` — the design brief gate: judging a supplied
+  brief, and grilling for one when it is missing.
 - `freecad://guide/visual-evidence` — the capture protocol. Read before
   capturing evidence.
 - `freecad://guide/parameters` — variable sets, units, and expression binding.

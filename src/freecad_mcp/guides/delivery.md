@@ -25,6 +25,13 @@ above and a screenshot; a parametric family someone else will maintain needs
 the manifest and README as well. Produce what the work warrants, and say what
 you produced.
 
+## Design Brief
+
+`design-brief.md` is part of the delivered set, not scratch. It records what
+the model was built to answer: the governing parameters and their ranges, the
+features required, the validation targets, and every assumption taken to fill
+a gap. Someone deciding whether the model is correct reads this first.
+
 ## Parameter Manifest
 
 A parameter manifest lists every governing and derived value: its name, type,
